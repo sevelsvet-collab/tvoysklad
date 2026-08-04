@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Товары и услуги — Склад{% endblock %}
+{% block page_title %}Товары и услуги{% endblock %}
+{% block page_actions %}
+<a href="{% url 'group_create' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Группа</a>
+<a href="{% url 'product_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Товар</a>
+{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-md-3 col-lg-2">
+    <div class="card">
+      <div class="card-body p-2 group-tree">
+        <ul>
+          <li><a href="{% url 'product_list' %}" class="{% if not active_group %}active{% endif %}"><i class="bi bi-folder2-open me-1"></i>Все товары</a></li>
+          {% for g in groups %}
+            {% include "catalog/_group_node.html" with group=g %}
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-9 col-lg-10">
+    <div class="mb-3">
+      <input type="search" name="q" class="form-control form-control-sm" style="max-width: 360px;"
+             placeholder="Наименование, артикул, код, штрихкод"
+             value="{{ request.GET.q|default:'' }}"
+             hx-get="{% url 'product_list' %}?group={{ active_group }}" hx-trigger="input changed delay:400ms, search"
+             hx-target="#product-rows">
+    </div>
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Наименование</th>
+              <th>Артикул</th>
+              <th>Группа</th>
+              <th>Ед.</th>
+              <th class="text-end">Закуп. цена</th>
+              <th class="text-end">Цена продажи</th>
+              <th>НДС</th>
+              <th>Тип</th>
+            </tr>
+          </thead>
+          <tbody id="product-rows">
+            {% include "catalog/_product_rows.html" %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-3">
+      <ul class="pagination pagination-sm">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q|default:'' }}&group={{ active_group }}">‹</a></li>{% endif %}
+        <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q|default:'' }}&group={{ active_group }}">›</a></li>{% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

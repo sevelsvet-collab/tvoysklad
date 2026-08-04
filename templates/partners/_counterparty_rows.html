@@ -1,0 +1,13 @@
+{% for cp in counterparties %}
+<tr onclick="window.location='{% url 'counterparty_edit' cp.pk %}'">
+  <td class="fw-semibold">{{ cp.name }}</td>
+  <td>{{ cp.get_partner_type_display }}</td>
+  <td>{{ cp.inn|default:"—" }}</td>
+  <td>{{ cp.phone|default:"—" }}</td>
+  <td>{{ cp.email|default:"—" }}</td>
+  <td>{{ cp.contact_person|default:"—" }}</td>
+  <td>{% if cp.is_active %}<span class="badge bg-success">Действующий</span>{% else %}<span class="badge bg-secondary">Архив</span>{% endif %}</td>
+</tr>
+{% empty %}
+<tr><td colspan="7" class="text-center text-muted py-4">Ничего не найдено</td></tr>
+{% endfor %}

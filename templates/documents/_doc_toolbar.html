@@ -1,0 +1,28 @@
+{% comment %}
+Единая панель действий документа (одна, сверху). Ожидает:
+object (может быть None), post_url_name, unpost_url_name, delete_url_name, list_url (опц.),
+save_post_label, post_label, posted_label.
+{% endcomment %}
+<div class="d-flex align-items-center gap-2 flex-wrap">
+  <button type="submit" name="action" value="save" class="btn btn-success btn-sm"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
+  {% if not object.is_posted %}
+    <button type="submit" name="action" value="save_post" class="btn btn-primary btn-sm"><i class="bi bi-check2-all me-1"></i>{{ save_post_label|default:"Сохранить и провести" }}</button>
+  {% endif %}
+  {% if object %}
+    {% if object.is_posted %}
+      <button type="submit" form="doc-action" formaction="{% url unpost_url_name object.pk %}" class="btn btn-outline-warning btn-sm"><i class="bi bi-arrow-counterclockwise me-1"></i>Снять с проведения</button>
+    {% else %}
+      <button type="submit" form="doc-action" formaction="{% url post_url_name object.pk %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-check2-all me-1"></i>{{ post_label|default:"Провести" }}</button>
+    {% endif %}
+    <button type="submit" form="doc-action" formaction="{% url delete_url_name object.pk %}" class="btn btn-outline-danger btn-sm"
+            onclick="return confirm('Удалить документ?');"><i class="bi bi-trash me-1"></i>Удалить</button>
+  {% endif %}
+  {% if list_url %}<a href="{{ list_url }}" class="btn btn-outline-secondary btn-sm">Закрыть</a>{% endif %}
+  {% if object %}
+    {% if object.is_posted %}
+      <span class="badge bg-success align-middle ms-1"><i class="bi bi-check2-all me-1"></i>{{ posted_label|default:"Проведён" }}</span>
+    {% else %}
+      <span class="badge bg-secondary align-middle ms-1">Черновик</span>
+    {% endif %}
+  {% endif %}
+</div>

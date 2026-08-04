@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Перемещение — Склад{% endblock %}
+{% block page_title %}{% if object %}Перемещение № {{ object.number }}{% else %}Новое перемещение{% endif %}{% endblock %}
+{% block content %}
+<form id="doc-action" method="post">{% csrf_token %}</form>
+<form method="post">
+  {% csrf_token %}
+  <div class="mb-3">
+    {% url 'transfer_list' as list_url %}
+    {% include "documents/_doc_toolbar.html" with post_url_name="transfer_post" unpost_url_name="transfer_unpost" delete_url_name="transfer_delete" list_url=list_url %}
+  </div>
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Дата</label>{{ form.date }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Организация</label>{{ form.organization }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Со склада</label>{{ form.warehouse_from }}
+          {% if form.warehouse_from.errors %}<div class="text-danger small">{{ form.warehouse_from.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">На склад</label>{{ form.warehouse_to }}
+          {% if form.warehouse_to.errors %}<div class="text-danger small">{{ form.warehouse_to.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-12">
+          <label class="form-label">Комментарий</label>{{ form.comment }}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% include "documents/_line_table.html" with show_stock=True show_price=False show_vat=False warehouse_field="warehouse_from" %}
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/doc-lines.js' %}{% if asset_version %}?v={{ asset_version }}{% endif %}"></script>{% endblock %}

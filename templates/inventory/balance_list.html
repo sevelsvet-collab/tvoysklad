@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Остатки — Склад{% endblock %}
+{% block page_title %}Остатки{% endblock %}
+{% block content %}
+<form method="get" class="d-flex gap-2 mb-3 flex-wrap">
+  <input type="search" name="q" class="form-control form-control-sm" style="max-width:280px;"
+         placeholder="Товар или артикул" value="{{ request.GET.q|default:'' }}">
+  <select name="warehouse" class="form-select form-select-sm" style="max-width:220px;" onchange="this.form.submit()">
+    <option value="">Все склады</option>
+    {% for w in warehouses %}
+      <option value="{{ w.pk }}" {% if active_warehouse == w.pk|stringformat:'s' %}selected{% endif %}>{{ w.name }}</option>
+    {% endfor %}
+  </select>
+  <select name="group" class="form-select form-select-sm" style="max-width:220px;" onchange="this.form.submit()">
+    <option value="">Все группы</option>
+    {% for g in groups %}
+      <option value="{{ g.pk }}" {% if active_group == g.pk|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-sm btn-outline-secondary">Показать</button>
+</form>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Товар</th><th>Артикул</th><th>Склад</th>
+          <th class="text-end">Остаток</th><th>Ед.</th>
+          <th class="text-end">Себестоимость</th><th class="text-end">Сумма</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in balances %}
+        <tr {% if b.product.min_stock and b.quantity < b.product.min_stock %}class="table-warning"{% endif %}
+            onclick="window.location='{% url 'product_edit' b.product.pk %}'">
+          <td class="fw-semibold">{{ b.product.name }}</td>
+          <td>{{ b.product.article|default:"—" }}</td>
+          <td>{{ b.warehouse.name }}</td>
+          <td class="text-end">{{ b.quantity|floatformat:"-3"|intcomma }}
+            {% if b.product.min_stock and b.quantity < b.product.min_stock %}
+              <i class="bi bi-exclamation-triangle-fill text-warning" title="Ниже неснижаемого остатка ({{ b.product.min_stock|floatformat:'-3' }})"></i>
+            {% endif %}
+          </td>
+          <td>{{ b.product.unit }}</td>
+          <td class="text-end">{{ b.avg_cost|floatformat:2|intcomma }}</td>
+          <td class="text-end">{{ b.total_value|floatformat:2|intcomma }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Остатков нет — проведите приёмку товара</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if balances %}
+      <tfoot class="table-light">
+        <tr>
+          <td colspan="6" class="text-end fw-semibold">Итого стоимость остатков:</td>
+          <td class="text-end fw-bold">{{ total_value|floatformat:2|intcomma }} ₽</td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

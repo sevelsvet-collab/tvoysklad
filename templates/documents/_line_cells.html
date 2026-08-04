@@ -1,0 +1,62 @@
+{% comment %}
+Ячейки строки табличной части (стиль МойСклад).
+Ожидает: form, show_price, show_vat, show_discount, show_stock, price_source, warehouse_field.
+{% endcomment %}
+{% load l10n %}
+{% localize off %}
+<td class="line-num text-center text-muted align-middle" style="width:30px;"></td>
+<td style="min-width:240px;">
+  {{ form.id }}
+  <div class="ac"
+       data-ac-url="{% url 'api_product_search' %}"
+       data-ac-create-url="{% url 'api_product_quick_create' %}"
+       data-ac-create-label="Создать новый товар"
+       data-ac-params='{"price": "{{ price_source|default:"purchase" }}"}'
+       data-ac-dyn='{"warehouse": "[name={{ warehouse_field|default:"warehouse" }}]"}'>
+    <input type="hidden" name="{{ form.product.html_name }}" id="{{ form.product.auto_id }}"
+           value="{{ form.product.value|default_if_none:'' }}" class="ac-value line-product">
+    <input type="text" class="form-control form-control-sm ac-input line-product-text"
+           placeholder="Добавить позицию — наименование, код, штрихкод или артикул"
+           value="{% if form.instance.product_id %}{{ form.instance.product.name }}{% if form.instance.product.article %} ({{ form.instance.product.article }}){% endif %}{% endif %}">
+  </div>
+</td>
+<td class="text-nowrap" style="width:118px;">
+  <div class="d-flex align-items-center gap-1">
+    <input type="number" step="0.001" min="0" name="{{ form.quantity.html_name }}" id="{{ form.quantity.auto_id }}"
+           value="{{ form.quantity.value|default_if_none:'' }}" class="form-control form-control-sm line-qty text-end">
+    <span class="line-unit text-muted small"></span>
+  </div>
+</td>
+{% if show_stock %}
+<td class="line-available text-end small align-middle" style="width:78px;"></td>
+<td class="line-stock text-end small align-middle" style="width:78px;"></td>
+{% endif %}
+{% if show_price %}
+<td style="width:110px;">
+  <input type="number" step="0.01" min="0" name="{{ form.price.html_name }}" id="{{ form.price.auto_id }}"
+         value="{{ form.price.value|default_if_none:'0' }}" class="form-control form-control-sm line-price text-end">
+</td>
+{% endif %}
+{% if show_discount %}
+<td style="width:128px;">
+  <div class="input-group input-group-sm">
+    <input type="hidden" name="{{ form.discount.html_name }}" id="{{ form.discount.auto_id }}"
+           value="{{ form.discount.value|default_if_none:'0' }}" class="line-discount-value">
+    <input type="number" step="0.01" min="0" class="form-control line-discount-input text-end"
+           value="{{ form.discount.value|default_if_none:'0' }}">
+    <button type="button" class="btn btn-outline-secondary line-discount-mode" data-mode="percent"
+            title="Переключить: скидка в % или в рублях">%</button>
+  </div>
+</td>
+{% endif %}
+{% if show_vat %}
+<td style="width:100px;">{{ form.vat_rate }}</td>
+{% endif %}
+{% if show_price %}
+<td class="line-sum text-end align-middle fw-semibold" style="width:112px;">—</td>
+{% endif %}
+<td class="text-center align-middle" style="width:34px;">
+  <span class="d-none">{{ form.DELETE }}</span>
+  <button type="button" class="btn btn-sm btn-link text-danger line-del p-0" title="Удалить строку"><i class="bi bi-x-lg"></i></button>
+</td>
+{% endlocalize %}

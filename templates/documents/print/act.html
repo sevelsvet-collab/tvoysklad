@@ -1,0 +1,63 @@
+{% extends "documents/print/base_print.html" %}
+{% load humanize %}
+{% block body %}
+<div class="center title">Акт № {{ doc.number }} от {{ doc.date|date:"d.m.Y" }} г.</div>
+<div class="center muted">об оказании услуг (выполнении работ)</div>
+
+<table class="mt">
+  <tr><td style="width:110pt" class="muted">Исполнитель:</td>
+      <td class="bold">{{ org.full_name|default:org.name }}, ИНН {{ org.inn }}{% if org.kpp %}, КПП {{ org.kpp }}{% endif %}{% if org.legal_address %}, {{ org.legal_address }}{% endif %}</td></tr>
+  <tr><td class="muted">Заказчик:</td>
+      <td class="bold">{{ counterparty.full_name|default:counterparty.name }}{% if counterparty.inn %}, ИНН {{ counterparty.inn }}{% endif %}{% if counterparty.kpp %}, КПП {{ counterparty.kpp }}{% endif %}{% if counterparty.legal_address %}, {{ counterparty.legal_address }}{% endif %}</td></tr>
+  {% if doc.invoice %}<tr><td class="muted">Основание:</td><td>Счёт № {{ doc.invoice.number }} от {{ doc.invoice.date|date:"d.m.Y" }}</td></tr>{% endif %}
+</table>
+
+<table class="b mt" style="table-layout:fixed">
+  <colgroup><col style="width:24pt"><col><col style="width:44pt"><col style="width:36pt"><col style="width:70pt"><col style="width:80pt"></colgroup>
+  <thead>
+    <tr class="bold center"><td>№</td><td>Наименование работ, услуг</td><td>Кол-во</td><td>Ед.</td><td>Цена</td><td>Сумма</td></tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="center">{{ r.n }}</td>
+      <td>{{ r.product.name }}</td>
+      <td class="right">{{ r.quantity|floatformat:"-3" }}</td>
+      <td class="center">{{ r.unit }}</td>
+      <td class="right">{{ r.price|floatformat:2|intcomma }}</td>
+      <td class="right">{{ r.total|floatformat:2|intcomma }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="bold"><td colspan="5" class="right">Итого:</td><td class="right">{{ total|floatformat:2|intcomma }}</td></tr>
+    {% if has_vat %}<tr><td colspan="5" class="right">В том числе НДС:</td><td class="right">{{ vat_total|floatformat:2|intcomma }}</td></tr>{% endif %}
+  </tbody>
+</table>
+
+<div class="mt bold">Всего оказано услуг на сумму: {{ total_words }}{% if not has_vat %}, без НДС{% endif %}</div>
+<div class="mt muted small">Вышеперечисленные услуги (работы) выполнены полностью и в срок. Заказчик претензий по объёму, качеству и срокам оказания услуг не имеет.</div>
+<hr class="mt">
+
+<table class="mt2">
+  <tr>
+    <td style="width:50%;vertical-align:top">
+      <div class="bold">Исполнитель</div>
+      <table class="mt">
+        <tr><td style="border-bottom:0.75pt solid #000;position:relative;width:150pt;height:34pt">
+          {% if org_signature %}<img src="{{ org_signature }}" class="sign-img" style="position:absolute;bottom:2pt;left:15pt">{% endif %}</td>
+          <td class="center" style="width:130pt;vertical-align:bottom">{{ org.director_name }}</td></tr>
+        <tr><td class="center small muted">подпись</td><td class="center small muted">расшифровка</td></tr>
+      </table>
+      {% if org_stamp %}<img src="{{ org_stamp }}" class="stamp-img" style="margin-top:4pt">{% endif %}
+    </td>
+    <td style="width:50%;vertical-align:top">
+      <div class="bold">Заказчик</div>
+      <table class="mt">
+        <tr><td style="border-bottom:0.75pt solid #000;width:150pt;height:34pt"></td>
+            <td class="center" style="width:130pt;vertical-align:bottom"></td></tr>
+        <tr><td class="center small muted">подпись</td><td class="center small muted">расшифровка</td></tr>
+        <tr><td class="mt2">М.П.</td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+{% endblock %}

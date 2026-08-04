@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+{% block title %}Приёмка — Склад{% endblock %}
+{% block page_title %}{% if object %}Приёмка № {{ object.number }}{% else %}Новая приёмка{% endif %}{% endblock %}
+{% block content %}
+{% url 'api_counterparty_search' as cp_search_url %}
+{% url 'api_counterparty_quick_create' as cp_create_url %}
+<form id="doc-action" method="post">{% csrf_token %}</form>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+    {% url 'receipt_list' as list_url %}
+    {% include "documents/_doc_toolbar.html" with post_url_name="receipt_post" unpost_url_name="receipt_unpost" delete_url_name="receipt_delete" list_url=list_url %}
+    {% if object %}
+      <button type="submit" form="doc-action" formaction="{% url 'receipt_to_return' object.pk %}" class="btn btn-outline-warning btn-sm"><i class="bi bi-arrow-return-left me-1"></i>Возврат поставщику</button>
+    {% endif %}
+  </div>
+
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Дата</label>{{ form.date }}
+          {% if form.date.errors %}<div class="text-danger small">{{ form.date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Организация</label>{{ form.organization }}
+          {% if form.organization.errors %}<div class="text-danger small">{{ form.organization.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Склад</label>{{ form.warehouse }}
+          {% if form.warehouse.errors %}<div class="text-danger small">{{ form.warehouse.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Поставщик</label>
+          {% include "documents/_ac_field.html" with field=form.supplier selected=form.instance.supplier search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" ac_params='{"type": "supplier"}' %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Договор</label>{{ form.contract }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Счёт поставщика №</label>{{ form.supplier_invoice }}
+        </div>
+        <div class="col-12">
+          <label class="form-label">Комментарий</label>{{ form.comment }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Вкладки #}
+  {% if object %}{% with related_docs=object.related_docs %}
+  <ul class="nav nav-tabs mb-0" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-lines" type="button" role="tab">Позиции</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-related" type="button" role="tab">
+        Связанные документы{% if related_docs %} <span class="badge text-bg-secondary rounded-pill">{{ related_docs|length }}</span>{% endif %}
+      </button>
+    </li>
+    <li class="nav-item"><button class="nav-link disabled" type="button">Файлы</button></li>
+    <li class="nav-item"><button class="nav-link disabled" type="button">Задачи</button></li>
+    <li class="nav-item"><button class="nav-link disabled" type="button">События</button></li>
+  </ul>
+  <div class="tab-content border border-top-0 rounded-bottom mb-3">
+    <div class="tab-pane fade show active" id="tab-lines" role="tabpanel">
+      {% include "documents/_line_table.html" with show_stock=True show_price=True show_vat=True show_discount=True no_outer_card=True %}
+    </div>
+    <div class="tab-pane fade" id="tab-related" role="tabpanel">
+      {% include "documents/_related_docs.html" with related_docs=related_docs %}
+    </div>
+  </div>
+  {% endwith %}{% else %}
+  {% include "documents/_line_table.html" with show_stock=True show_price=True show_vat=True show_discount=True %}
+  {% endif %}
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/doc-lines.js' %}{% if asset_version %}?v={{ asset_version }}{% endif %}"></script>{% endblock %}

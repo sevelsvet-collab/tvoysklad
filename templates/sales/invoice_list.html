@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Счета покупателям — Склад{% endblock %}
+{% block page_title %}Счета покупателям{% endblock %}
+{% block page_actions %}
+<a href="{% url 'invoice_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Счёт</a>
+{% endblock %}
+{% block content %}
+<form method="get" class="d-flex gap-2 mb-3 flex-wrap">
+  <input type="search" name="q" class="form-control form-control-sm" style="max-width:320px;"
+         placeholder="Номер или покупатель" value="{{ request.GET.q|default:'' }}">
+  <select name="status" class="form-select form-select-sm" style="max-width:180px;" onchange="this.form.submit()">
+    <option value="">Все статусы</option>
+    <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>Черновики</option>
+    <option value="issued" {% if request.GET.status == 'issued' %}selected{% endif %}>Выставленные</option>
+  </select>
+  <button class="btn btn-sm btn-outline-secondary">Найти</button>
+</form>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>№</th><th>Дата</th><th>Покупатель</th><th>Со склада</th>
+          <th class="text-end">Сумма</th><th class="text-end">Оплачено</th><th class="text-end">Отгружено</th><th>Статус</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr onclick="window.location='{% url 'invoice_edit' inv.pk %}'">
+          <td class="fw-semibold">{{ inv.number }}</td>
+          <td>{{ inv.date|date:"d.m.Y" }}</td>
+          <td>{{ inv.customer.name }}</td>
+          <td>{{ inv.warehouse.name }}</td>
+          <td class="text-end">{{ inv.total|floatformat:2|intcomma }}</td>
+          <td class="text-end">{% if inv.paid_amount %}{{ inv.paid_amount|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+          <td class="text-end">{% if inv.shipped_amount %}{{ inv.shipped_amount|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+          <td>{% if inv.is_posted %}<span class="badge bg-primary">Выставлен</span>{% else %}<span class="badge bg-secondary">Черновик</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-4">Счетов пока нет</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

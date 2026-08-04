@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Контрагент — Склад{% endblock %}
+{% block page_title %}{% if object %}{{ object.name }}{% else %}Новый контрагент{% endif %}{% endblock %}
+{% block content %}
+<form method="post">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-main" type="button">Реквизиты</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-banks" type="button">Банковские счета</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-contracts" type="button">Договоры</button></li>
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-main">
+      <div class="row g-4">
+        <div class="col-lg-6">
+          <div class="card">
+            <div class="card-body">
+              {% for field in form %}
+                {% if field.name == "inn" %}
+                  <div class="mb-3">
+                    <label class="form-label">{{ field.label }}</label>
+                    <div class="input-group">
+                      {{ field }}
+                      <button type="button" class="btn btn-outline-primary" id="btn-inn-lookup">
+                        <i class="bi bi-magic me-1"></i>Заполнить по ИНН
+                      </button>
+                    </div>
+                    <div class="text-danger small d-none mt-1" id="inn-lookup-error"></div>
+                    {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+                  </div>
+                {% elif field.name in "name,full_name,kind,partner_type,kpp,ogrn,okpo" %}
+                  <div class="mb-3">
+                    <label class="form-label">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card">
+            <div class="card-body">
+              {% for field in form %}
+                {% if field.name in "legal_address,actual_address,phone,email,contact_person,director_name,comment" %}
+                  <div class="mb-3">
+                    <label class="form-label">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+              <div class="form-check">
+                {{ form.is_active }}
+                <label class="form-check-label">{{ form.is_active.label }}</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-pane fade" id="tab-banks">
+      <div class="card"><div class="card-body">
+        {{ bank_formset.management_form }}
+        <table class="table align-middle">
+          <thead><tr><th>Банк</th><th>БИК</th><th>Расчётный счёт</th><th>Корр. счёт</th><th>Основной</th><th>Удалить</th></tr></thead>
+          <tbody>
+            {% for f in bank_formset %}
+            <tr>
+              {{ f.id }}
+              <td>{{ f.bank_name }}</td>
+              <td>{{ f.bik }}</td>
+              <td>{{ f.account }}</td>
+              <td>{{ f.corr_account }}</td>
+              <td class="text-center">{{ f.is_default }}</td>
+              <td class="text-center">{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+            </tr>
+            {% if f.errors %}<tr><td colspan="6" class="text-danger small">{{ f.errors }}</td></tr>{% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="text-muted small mb-0">Пустая строка — для добавления нового счёта. Сохраните форму, чтобы добавить ещё.</p>
+      </div></div>
+    </div>
+    <div class="tab-pane fade" id="tab-contracts">
+      <div class="card"><div class="card-body">
+        {{ contract_formset.management_form }}
+        <table class="table align-middle">
+          <thead><tr><th>Организация</th><th>Номер</th><th>Дата</th><th>Название</th><th>Удалить</th></tr></thead>
+          <tbody>
+            {% for f in contract_formset %}
+            <tr>
+              {{ f.id }}
+              <td>{{ f.organization }}</td>
+              <td>{{ f.number }}</td>
+              <td>{{ f.date }}</td>
+              <td>{{ f.name }}</td>
+              <td class="text-center">{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+            </tr>
+            {% if f.errors %}<tr><td colspan="5" class="text-danger small">{{ f.errors }}</td></tr>{% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="text-muted small mb-0">Пустая строка — для добавления нового договора.</p>
+      </div></div>
+    </div>
+  </div>
+  <div class="mt-3">
+    <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
+    <a href="{% url 'counterparty_list' %}" class="btn btn-outline-secondary">Закрыть</a>
+  </div>
+</form>
+<script>
+document.getElementById('btn-inn-lookup').addEventListener('click', async function () {
+  const btn = this;
+  const errBox = document.getElementById('inn-lookup-error');
+  const inn = document.getElementById('id_inn').value.trim();
+  errBox.classList.add('d-none');
+  btn.disabled = true;
+  try {
+    const resp = await fetch("{% url 'inn_lookup' %}?inn=" + encodeURIComponent(inn));
+    const json = await resp.json();
+    if (!json.ok) {
+      errBox.textContent = json.error;
+      errBox.classList.remove('d-none');
+      return;
+    }
+    const d = json.data;
+    const fill = (id, value) => {
+      const el = document.getElementById(id);
+      if (el && value) el.value = value;
+    };
+    fill('id_name', d.name);
+    fill('id_full_name', d.full_name);
+    fill('id_kpp', d.kpp);
+    fill('id_ogrn', d.ogrn);
+    fill('id_okpo', d.okpo);
+    fill('id_legal_address', d.legal_address);
+    fill('id_director_name', d.director_name);
+    if (d.kind) document.getElementById('id_kind').value = d.kind;
+  } catch (e) {
+    errBox.textContent = 'Ошибка запроса: ' + e;
+    errBox.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+{% endblock %}

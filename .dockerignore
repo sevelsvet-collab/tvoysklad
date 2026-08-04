@@ -1,0 +1,17 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+db.sqlite3
+.env
+.env.*
+!.env.production.example
+media/
+staticfiles/
+.git/
+.gitignore
+*.md
+.pytest_cache/
+.ruff_cache/
+node_modules/

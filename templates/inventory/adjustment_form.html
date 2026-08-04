@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{% if is_income %}Оприходование{% else %}Списание{% endif %} — Склад{% endblock %}
+{% block page_title %}
+  {% if object %}{{ object.get_kind_display }} № {{ object.number }}
+  {% else %}{% if is_income %}Новое оприходование{% else %}Новое списание{% endif %}{% endif %}
+{% endblock %}
+{% block content %}
+<form id="doc-action" method="post">{% csrf_token %}</form>
+<form method="post">
+  {% csrf_token %}
+  <div class="mb-3">
+    {% if is_income %}{% url 'adjustment_list_income' as list_url %}{% else %}{% url 'adjustment_list_expense' as list_url %}{% endif %}
+    {% include "documents/_doc_toolbar.html" with post_url_name="adjustment_post" unpost_url_name="adjustment_unpost" delete_url_name="adjustment_delete" list_url=list_url %}
+  </div>
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Дата</label>{{ form.date }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Организация</label>{{ form.organization }}
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Склад</label>{{ form.warehouse }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Причина</label>{{ form.reason }}
+        </div>
+        <div class="col-12">
+          <label class="form-label">Комментарий</label>{{ form.comment }}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% include "documents/_line_table.html" with show_stock=True show_price=is_income show_vat=False %}
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/doc-lines.js' %}{% if asset_version %}?v={{ asset_version }}{% endif %}"></script>{% endblock %}

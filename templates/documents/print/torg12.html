@@ -1,0 +1,83 @@
+{% extends "documents/print/base_print.html" %}
+{% load humanize %}
+{% block page_size %}A4 landscape{% endblock %}
+{% block body %}
+<div class="right small">Унифицированная форма № ТОРГ-12</div>
+<div class="center title">Товарная накладная № {{ doc.number }} от {{ doc.date|date:"d.m.Y" }} г.</div>
+
+<table class="mt">
+  <tr><td style="width:130pt" class="muted">Грузоотправитель:</td>
+      <td class="bold">{{ org.full_name|default:org.name }}, ИНН {{ org.inn }}{% if org.kpp %}, КПП {{ org.kpp }}{% endif %}{% if org.legal_address %}, {{ org.legal_address }}{% endif %}{% if org.bank_name %} · р/с {{ org.bank_account }} в {{ org.bank_name }}, БИК {{ org.bik }}{% endif %}</td></tr>
+  <tr><td class="muted">Грузополучатель:</td>
+      <td class="bold">{{ counterparty.full_name|default:counterparty.name }}{% if counterparty.inn %}, ИНН {{ counterparty.inn }}{% endif %}{% if counterparty.kpp %}, КПП {{ counterparty.kpp }}{% endif %}{% if counterparty.legal_address %}, {{ counterparty.legal_address }}{% endif %}</td></tr>
+  <tr><td class="muted">Поставщик:</td><td>{{ org.full_name|default:org.name }}</td></tr>
+  <tr><td class="muted">Плательщик:</td><td>{{ counterparty.full_name|default:counterparty.name }}</td></tr>
+  {% if doc.invoice %}<tr><td class="muted">Основание:</td><td>Счёт № {{ doc.invoice.number }} от {{ doc.invoice.date|date:"d.m.Y" }}</td></tr>{% endif %}
+</table>
+
+<table class="b mt" style="table-layout:fixed">
+  <colgroup>
+    <col style="width:22pt"><col><col style="width:36pt"><col style="width:34pt"><col style="width:44pt">
+    <col style="width:50pt"><col style="width:60pt"><col style="width:36pt"><col style="width:55pt"><col style="width:62pt">
+  </colgroup>
+  <thead>
+    <tr class="bold center small">
+      <td>№</td><td>Товар (наименование)</td><td>Ед.</td><td>Код ОКЕИ</td><td>Кол-во</td>
+      <td>Цена, руб.</td><td>Сумма без НДС</td><td>НДС %</td><td>Сумма НДС</td><td>Всего с НДС</td>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr class="small">
+      <td class="center">{{ r.n }}</td>
+      <td>{{ r.product.name }}{% if r.product.article %} (арт. {{ r.product.article }}){% endif %}</td>
+      <td class="center">{{ r.unit }}</td>
+      <td class="center">{{ r.unit.okei_code }}</td>
+      <td class="right">{{ r.quantity|floatformat:"-3" }}</td>
+      <td class="right">{{ r.price|floatformat:2|intcomma }}</td>
+      <td class="right">{{ r.total|floatformat:2|intcomma }}</td>
+      <td class="center">{{ r.vat_rate }}</td>
+      <td class="right">{{ r.vat_amount|floatformat:2|intcomma }}</td>
+      <td class="right">{{ r.total|floatformat:2|intcomma }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="bold">
+      <td colspan="6" class="right">Итого:</td>
+      <td class="right">{{ total|floatformat:2|intcomma }}</td>
+      <td></td>
+      <td class="right">{{ vat_total|floatformat:2|intcomma }}</td>
+      <td class="right">{{ total|floatformat:2|intcomma }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="mt">Всего наименований {{ count }}, на сумму {{ total|floatformat:2|intcomma }} руб.</div>
+<div class="bold">Всего к оплате: {{ total_words }}</div>
+{% if has_vat %}<div>В том числе НДС: {{ vat_total|floatformat:2|intcomma }} руб.</div>{% else %}<div>Без НДС</div>{% endif %}
+
+<table class="mt2">
+  <tr>
+    <td style="width:50%;vertical-align:top">
+      <div class="muted">Отпустил</div>
+      <table class="mt">
+        <tr><td style="width:120pt">Руководитель</td>
+            <td style="border-bottom:0.75pt solid #000;position:relative;width:150pt">
+              {% if org_signature %}<img src="{{ org_signature }}" class="sign-img" style="position:absolute;bottom:2pt;left:15pt">{% endif %}</td>
+            <td class="center" style="width:130pt">{{ org.director_name }}</td></tr>
+        <tr><td></td><td class="center small muted">подпись</td><td class="center small muted">расшифровка</td></tr>
+        <tr><td class="mt">Гл. бухгалтер</td><td style="border-bottom:0.75pt solid #000"></td><td class="center">{{ org.accountant_name }}</td></tr>
+        <tr><td></td><td class="center small muted">подпись</td><td class="center small muted">расшифровка</td></tr>
+      </table>
+      {% if org_stamp %}<img src="{{ org_stamp }}" class="stamp-img" style="margin-top:4pt">{% endif %}
+    </td>
+    <td style="width:50%;vertical-align:top">
+      <div class="muted">Груз получил / Принял</div>
+      <table class="mt">
+        <tr><td style="width:120pt">Должность</td><td style="border-bottom:0.75pt solid #000;width:150pt"></td><td class="center" style="width:130pt"></td></tr>
+        <tr><td></td><td class="center small muted">подпись</td><td class="center small muted">расшифровка</td></tr>
+        <tr><td class="mt2">М.П.</td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Счета и кассы — Склад{% endblock %}
+{% block page_title %}Счета и кассы{% endblock %}
+{% block page_actions %}
+<a href="{% url 'account_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Счёт / касса</a>
+{% endblock %}
+{% block content %}
+<div class="card" style="max-width:760px;">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Наименование</th><th>Тип</th><th>Номер счёта</th><th class="text-end">Остаток</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for a in accounts %}
+        <tr onclick="window.location='{% url 'account_edit' a.pk %}'">
+          <td class="fw-semibold">{{ a.name }}{% if a.is_default %} <span class="badge bg-primary">осн.</span>{% endif %}</td>
+          <td>{{ a.get_kind_display }}</td>
+          <td>{{ a.bank_account|default:"—" }}</td>
+          <td class="text-end fw-semibold">{{ a.balance|floatformat:2|intcomma }} ₽</td>
+          <td>{% if not a.is_active %}<span class="badge bg-secondary">архив</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">Создайте кассу или расчётный счёт</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if accounts %}
+      <tfoot class="table-light">
+        <tr><td colspan="3" class="text-end fw-semibold">Всего денег:</td><td class="text-end fw-bold">{{ total|floatformat:2|intcomma }} ₽</td><td></td></tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

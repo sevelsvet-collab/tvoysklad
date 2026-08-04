@@ -1,0 +1,12 @@
+{% comment %}Фильтр периода. Ожидает: date_from, date_to.{% endcomment %}
+<form method="get" class="d-flex gap-2 mb-3 flex-wrap align-items-end">
+  <div>
+    <label class="form-label small mb-0">С</label>
+    <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}" class="form-control form-control-sm">
+  </div>
+  <div>
+    <label class="form-label small mb-0">По</label>
+    <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}" class="form-control form-control-sm">
+  </div>
+  <button class="btn btn-sm btn-primary">Показать</button>
+</form>

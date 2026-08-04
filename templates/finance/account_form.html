@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Счёт / касса — Склад{% endblock %}
+{% block page_title %}{% if object %}{{ object.name }}{% else %}Новый счёт / касса{% endif %}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:620px;">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="mb-3 {% if field.name in 'is_default,is_active' %}form-check{% endif %}">
+          {% if field.name in 'is_default,is_active' %}
+            {{ field }}<label class="form-check-label ms-1">{{ field.label }}</label>
+          {% else %}
+            <label class="form-label">{{ field.label }}</label>{{ field }}
+          {% endif %}
+          {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+        </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
+      <a href="{% url 'account_list' %}" class="btn btn-outline-secondary">Закрыть</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

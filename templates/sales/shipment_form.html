@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+{% block title %}Отгрузка — Склад{% endblock %}
+{% block page_title %}{% if object %}Отгрузка № {{ object.number }}{% else %}Новая отгрузка{% endif %}{% endblock %}
+{% block content %}
+{% url 'api_counterparty_search' as cp_search_url %}
+{% url 'api_counterparty_quick_create' as cp_create_url %}
+<form id="doc-action" method="post">{% csrf_token %}</form>
+<form method="post">
+  {% csrf_token %}
+  <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+    {% url 'shipment_list' as list_url %}
+    {% include "documents/_doc_toolbar.html" with post_url_name="shipment_post" unpost_url_name="shipment_unpost" delete_url_name="shipment_delete" list_url=list_url %}
+    {% if object %}
+      <button type="submit" form="doc-action" formaction="{% url 'shipment_to_return' object.pk %}" class="btn btn-outline-warning btn-sm"><i class="bi bi-arrow-return-left me-1"></i>Возврат покупателя</button>
+      <div class="dropdown d-inline-block">
+        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-printer me-1"></i>Печать</button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" target="_blank" href="{% url 'print_shipment_torg12' object.pk %}">ТОРГ-12 (PDF)</a></li>
+          <li><a class="dropdown-item" target="_blank" href="{% url 'print_shipment_act' object.pk %}">Акт (PDF)</a></li>
+          <li><a class="dropdown-item" target="_blank" href="{% url 'print_shipment_upd' object.pk %}">УПД (PDF)</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" target="_blank" href="{% url 'print_shipment_torg12' object.pk %}?fmt=html">ТОРГ-12 — просмотр (HTML)</a></li>
+          <li><a class="dropdown-item" target="_blank" href="{% url 'print_shipment_upd' object.pk %}?fmt=html">УПД — просмотр (HTML)</a></li>
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3"><label class="form-label">Дата</label>{{ form.date }}</div>
+        <div class="col-md-5"><label class="form-label">Организация</label>{{ form.organization }}</div>
+        <div class="col-md-4"><label class="form-label">Со склада</label>{{ form.warehouse }}</div>
+        <div class="col-md-6"><label class="form-label">Покупатель</label>
+          {% include "documents/_ac_field.html" with field=form.customer selected=form.instance.customer search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" ac_params='{"type": "customer"}' %}
+        </div>
+        <div class="col-12"><label class="form-label">Комментарий</label>{{ form.comment }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# Вкладки #}
+  {% if object %}{% with related_docs=object.related_docs %}
+  <ul class="nav nav-tabs mb-0" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-lines" type="button" role="tab">Позиции</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-related" type="button" role="tab">
+        Связанные документы{% if related_docs %} <span class="badge text-bg-secondary rounded-pill">{{ related_docs|length }}</span>{% endif %}
+      </button>
+    </li>
+    <li class="nav-item"><button class="nav-link disabled" type="button">Файлы</button></li>
+    <li class="nav-item"><button class="nav-link disabled" type="button">Задачи</button></li>
+    <li class="nav-item"><button class="nav-link disabled" type="button">События</button></li>
+  </ul>
+  <div class="tab-content border border-top-0 rounded-bottom mb-3">
+    <div class="tab-pane fade show active" id="tab-lines" role="tabpanel">
+      {% include "documents/_line_table.html" with show_stock=True show_price=True show_vat=True show_discount=True price_source="sale" no_outer_card=True %}
+      {% if object.is_posted %}
+      <div class="d-flex gap-4 px-3 py-2 border-top text-muted small">
+        <div>Выручка: <b>{{ object.total|floatformat:2|intcomma }} ₽</b></div>
+        <div>Себестоимость: <b>{{ object.cost_total|floatformat:2|intcomma }} ₽</b></div>
+        <div class="text-success">Прибыль: <b>{{ object.profit_total|floatformat:2|intcomma }} ₽</b></div>
+      </div>
+      {% endif %}
+    </div>
+    <div class="tab-pane fade" id="tab-related" role="tabpanel">
+      {% include "documents/_related_docs.html" with related_docs=related_docs %}
+    </div>
+  </div>
+  {% endwith %}{% else %}
+  {% include "documents/_line_table.html" with show_stock=True show_price=True show_vat=True show_discount=True price_source="sale" %}
+  {% endif %}
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/doc-lines.js' %}{% if asset_version %}?v={{ asset_version }}{% endif %}"></script>{% endblock %}

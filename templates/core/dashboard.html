@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Показатели — Склад{% endblock %}
+{% block page_title %}Показатели{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-md-3">
+    <div class="card"><div class="card-body">
+      <div class="text-muted small">Продажи за месяц</div>
+      <div class="h4 mb-0">{{ sales_month.revenue|floatformat:2|intcomma }} ₽</div>
+      <div class="small text-success">прибыль {{ sales_month.profit|floatformat:2|intcomma }} ₽</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card"><div class="card-body">
+      <div class="text-muted small">Деньги на счетах</div>
+      <div class="h4 mb-0">{{ money_total|floatformat:2|intcomma }} ₽</div>
+      <a href="{% url 'account_list' %}" class="small">Счета и кассы</a>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card"><div class="card-body">
+      <div class="text-muted small">Отгрузок за месяц</div>
+      <div class="h4 mb-0">{{ sales_month.count }}</div>
+      <a href="{% url 'report_sales' %}" class="small">Отчёт по продажам</a>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card {% if overdue %}border-danger{% endif %}"><div class="card-body">
+      <div class="text-muted small">Просроченные счета</div>
+      <div class="h4 mb-0 {% if overdue %}text-danger{% endif %}">{{ overdue|length }}</div>
+      <div class="small text-muted">не оплачены в срок</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-lg-7">
+    <div class="card"><div class="card-body">
+      <div class="text-muted small mb-2">Выручка по месяцам</div>
+      <canvas id="salesChart" height="110"></canvas>
+    </div></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card h-100"><div class="card-header bg-white fw-semibold">Топ товаров за месяц</div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead class="table-light"><tr><th>Товар</th><th class="text-end">Выручка</th></tr></thead>
+        <tbody>
+          {% for p in top_products %}
+          <tr><td>{{ p.product__name }}</td><td class="text-end">{{ p.revenue|floatformat:2|intcomma }}</td></tr>
+          {% empty %}<tr><td colspan="2" class="text-center text-muted py-3">Нет продаж в этом месяце</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+  </div>
+</div>
+
+{% if overdue %}
+<div class="card mt-3">
+  <div class="card-header bg-white fw-semibold text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Просроченные счета</div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+    <thead class="table-light"><tr><th>№</th><th>Покупатель</th><th>Срок оплаты</th><th class="text-end">Сумма</th><th class="text-end">Оплачено</th></tr></thead>
+    <tbody>
+      {% for inv in overdue %}
+      <tr onclick="window.location='{% url 'invoice_edit' inv.pk %}'" style="cursor:pointer">
+        <td>{{ inv.number }}</td><td>{{ inv.customer.name }}</td>
+        <td class="text-danger">{{ inv.due_date|date:"d.m.Y" }}</td>
+        <td class="text-end">{{ inv.calc_total|floatformat:2|intcomma }}</td>
+        <td class="text-end">{{ inv.paid_amount|floatformat:2|intcomma }}</td></tr>
+      {% endfor %}
+    </tbody></table></div>
+</div>
+{% endif %}
+
+{{ chart_labels|json_script:"chart-labels" }}
+{{ chart_values|json_script:"chart-values" }}
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const labels = JSON.parse(document.getElementById('chart-labels').textContent);
+  const values = JSON.parse(document.getElementById('chart-values').textContent);
+  new Chart(document.getElementById('salesChart'), {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'Выручка, ₽', data: values,
+      borderColor: '#337ab7', backgroundColor: 'rgba(51,122,183,.1)', fill: true, tension: .3 }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+</script>
+{% endblock %}

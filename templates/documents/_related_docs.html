@@ -1,0 +1,40 @@
+{% load humanize %}
+{% if related_docs %}
+<div class="p-3">
+  <div class="d-flex flex-wrap align-items-start gap-3">
+    {% for doc in related_docs %}
+    <div class="d-flex align-items-center gap-2">
+      {% if doc.is_source %}<div class="text-center" style="min-width:160px;">
+        <div class="text-muted mb-1" style="font-size:11px;">↑ Основание</div>{% endif %}
+      <a href="{{ doc.url }}" class="text-decoration-none">
+        <div class="card h-100{% if not doc.is_source %} border-primary{% endif %}" style="min-width:160px;max-width:200px;cursor:pointer;">
+          <div class="card-body p-2">
+            <div class="d-flex align-items-center gap-1 mb-1">
+              <i class="bi {{ doc.icon }} text-secondary small"></i>
+              <span class="text-muted" style="font-size:11px;">{{ doc.type_label }}</span>
+            </div>
+            <div class="fw-semibold">№ {{ doc.number }}</div>
+            <div class="text-muted small">{{ doc.date|date:"d.m.Y" }}</div>
+            <div class="mt-1 fw-semibold{% if doc.is_posted %} text-success{% endif %}">{{ doc.amount|floatformat:2|intcomma }} ₽</div>
+            <div class="mt-1">
+              {% if doc.is_posted %}
+                <span class="badge text-bg-success" style="font-size:9px;">Проведён</span>
+              {% else %}
+                <span class="badge text-bg-secondary" style="font-size:9px;">Черновик</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </a>
+      {% if doc.is_source %}</div>
+      <div class="text-muted fs-5">→</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="py-5 text-center text-muted">
+  <i class="bi bi-diagram-2 d-block fs-2 mb-2"></i>
+  <span class="small">Связанных документов нет</span>
+</div>
+{% endif %}

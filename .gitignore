@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Django
+db.sqlite3
+/staticfiles/
+/media/
+
+# Секреты — НИКОГДА не коммитить
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Инструменты
+.pytest_cache/
+.ruff_cache/
+.idea/
+.vscode/

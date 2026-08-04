@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Организация — Склад{% endblock %}
+{% block page_title %}{% if object %}{{ object.name }}{% else %}Новая организация{% endif %}{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card mb-3">
+        <div class="card-header bg-white fw-semibold">Общие сведения</div>
+        <div class="card-body">
+          {% for field in form %}
+            {% if field.name in "name,full_name,inn,kpp,ogrn,legal_address,actual_address,phone,email" %}
+              <div class="mb-3">
+                <label class="form-label">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card mb-3">
+        <div class="card-header bg-white fw-semibold">Банковские реквизиты</div>
+        <div class="card-body">
+          {% for field in form %}
+            {% if field.name in "bank_name,bik,bank_account,corr_account" %}
+              <div class="mb-3">
+                <label class="form-label">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card mb-3">
+        <div class="card-header bg-white fw-semibold">Подписи и печать (для PDF)</div>
+        <div class="card-body">
+          {% for field in form %}
+            {% if field.name in "director_position,director_name,accountant_name,signature,stamp,logo" %}
+              <div class="mb-3">
+                <label class="form-label">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card mb-3">
+        <div class="card-body">
+          {% for field in form %}
+            {% if field.name in "vat_payer,is_default,is_active" %}
+              <div class="form-check mb-2">
+                {{ field }}
+                <label class="form-check-label">{{ field.label }}</label>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="mt-1">
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
+    <a href="{% url 'organization_list' %}" class="btn btn-outline-secondary">Отмена</a>
+  </div>
+</form>
+{% endblock %}

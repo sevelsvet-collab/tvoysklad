@@ -1,0 +1,160 @@
+:root {
+  --ms-blue: #337ab7;
+  --ms-blue-dark: #2a6496;
+  --ms-blue-darker: #235378;
+}
+
+body { background: #fff; }
+
+/* ---------- Верхняя панель (как в МойСклад) ---------- */
+
+.topbar {
+  display: flex;
+  align-items: stretch;
+  background: linear-gradient(180deg, #4a94cc 0%, var(--ms-blue) 100%);
+  color: #fff;
+  min-height: 54px;
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  font-size: 1.5rem;
+  color: #fff;
+}
+
+.topbar-nav { display: flex; flex: 1; overflow-x: auto; }
+
+.topbar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 74px;
+  padding: 6px 10px 4px;
+  color: rgba(255,255,255,.9);
+  text-decoration: none;
+  font-size: .72rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.topbar-item i { font-size: 1.15rem; }
+.topbar-item:hover { background: rgba(255,255,255,.12); color: #fff; }
+.topbar-item.active { background: var(--ms-blue-darker); color: #fff; }
+.topbar-item.disabled { color: rgba(255,255,255,.45); cursor: default; }
+
+.topbar-user { display: flex; align-items: center; padding: 0 .75rem; }
+.topbar-logout { color: #fff; border: 1px solid rgba(255,255,255,.4); }
+.topbar-logout:hover { background: rgba(255,255,255,.15); color: #fff; }
+
+/* ---------- Подменю раздела ---------- */
+
+.submenu {
+  display: flex;
+  gap: .25rem;
+  padding: 0 1rem;
+  border-bottom: 1px solid #e3e7ea;
+  background: #fff;
+  overflow-x: auto;
+}
+
+.submenu-item {
+  padding: .55rem .9rem;
+  color: var(--ms-blue-dark);
+  text-decoration: none;
+  font-size: .9rem;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+.submenu-item:hover { color: var(--ms-blue-darker); }
+.submenu-item.active { border-bottom-color: var(--ms-blue); font-weight: 600; color: #212529; }
+.submenu-item.disabled { color: #9aa6b0; cursor: default; }
+
+/* ---------- Контент ---------- */
+
+.content { padding: 1rem 1.25rem; }
+
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .85rem;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.card { border: 1px solid #e3e7ea; box-shadow: none; }
+
+.table-hover tbody tr { cursor: pointer; }
+.table thead th { font-weight: 600; font-size: .85rem; color: #495057; }
+
+/* Дерево групп товаров */
+.group-tree { font-size: .92rem; }
+.group-tree a { color: #212529; text-decoration: none; display: block; padding: .2rem .4rem; border-radius: .25rem; }
+.group-tree a:hover { background: #eef4f9; }
+.group-tree a.active { background: var(--ms-blue); color: #fff; }
+.group-tree ul { list-style: none; padding-left: 1rem; margin: 0; }
+.group-tree > ul { padding-left: 0; }
+
+/* Табличная часть документов */
+.doc-table > thead th { font-size: .8rem; font-weight: 600; color: #6c757d; white-space: nowrap; }
+.doc-table > tbody > tr > td { padding-top: .3rem; padding-bottom: .3rem; }
+.doc-table .line-num { font-size: .82rem; }
+.doc-table .line-discount-input { min-width: 48px; }
+.doc-table .line-discount-mode { width: 30px; padding-left: 0; padding-right: 0; font-weight: 600; }
+.doc-table .ac-input { border-color: transparent; background: transparent; padding-left: .25rem; }
+.doc-table .line-row:hover .ac-input { border-color: #ced4da; background: #fff; }
+.doc-table .ac-input:focus { border-color: #86b7fe; background: #fff; }
+
+/* ---------- Живой поиск (автодополнение) ---------- */
+
+.ac { position: relative; }
+
+.ac-menu {
+  position: fixed;      /* координаты задаёт JS — меню не обрезается прокруткой таблиц */
+  z-index: 1080;
+  min-width: 300px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d3dae0;
+  border-radius: .3rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
+}
+
+.ac-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .35rem .6rem;
+  cursor: pointer;
+  font-size: .9rem;
+}
+.ac-item:hover, .ac-item.active { background: #eef4f9; }
+.ac-main { min-width: 0; }
+.ac-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-sub { font-size: .78rem; color: #6c757d; }
+
+.ac-stock {
+  flex: none;
+  font-size: .8rem;
+  color: #2a6496;
+  background: #eef4f9;
+  border-radius: .25rem;
+  padding: 0 .35rem;
+}
+.ac-stock-zero { color: #b02a37; background: #f8d7da; }
+
+.ac-empty { padding: .5rem .6rem; color: #6c757d; font-size: .86rem; }
+
+.ac-create {
+  padding: .4rem .6rem;
+  border-top: 1px solid #e9ecef;
+  color: var(--ms-blue-dark);
+  cursor: pointer;
+  font-size: .88rem;
+}
+.ac-create:hover { background: #eef4f9; }

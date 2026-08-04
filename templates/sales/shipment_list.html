@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Отгрузки — Склад{% endblock %}
+{% block page_title %}Отгрузки{% endblock %}
+{% block page_actions %}
+<a href="{% url 'shipment_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Отгрузка</a>
+{% endblock %}
+{% block content %}
+<form method="get" class="d-flex gap-2 mb-3 flex-wrap">
+  <input type="search" name="q" class="form-control form-control-sm" style="max-width:320px;"
+         placeholder="Номер или покупатель" value="{{ request.GET.q|default:'' }}">
+  <select name="status" class="form-select form-select-sm" style="max-width:180px;" onchange="this.form.submit()">
+    <option value="">Все статусы</option>
+    <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>Черновики</option>
+    <option value="posted" {% if request.GET.status == 'posted' %}selected{% endif %}>Проведённые</option>
+  </select>
+  <button class="btn btn-sm btn-outline-secondary">Найти</button>
+</form>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>№</th><th>Дата</th><th>Покупатель</th><th>Со склада</th>
+          <th class="text-end">Сумма</th><th class="text-end">Прибыль</th><th>Статус</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in shipments %}
+        <tr onclick="window.location='{% url 'shipment_edit' s.pk %}'">
+          <td class="fw-semibold">{{ s.number }}</td>
+          <td>{{ s.date|date:"d.m.Y" }}</td>
+          <td>{{ s.customer.name }}</td>
+          <td>{{ s.warehouse.name }}</td>
+          <td class="text-end">{{ s.total|floatformat:2|intcomma }}</td>
+          <td class="text-end">{% if s.is_posted %}<span class="text-success">{{ s.profit_total|floatformat:2|intcomma }}</span>{% else %}—{% endif %}</td>
+          <td>{% if s.is_posted %}<span class="badge bg-success">Проведена</span>{% else %}<span class="badge bg-secondary">Черновик</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Отгрузок пока нет</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

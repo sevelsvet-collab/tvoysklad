@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Склады — Склад{% endblock %}
+{% block page_title %}Настройки{% endblock %}
+{% block page_actions %}
+<a href="{% url 'warehouse_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Добавить склад</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Наименование</th><th>Адрес</th><th>По умолчанию</th><th>Статус</th></tr>
+      </thead>
+      <tbody>
+        {% for wh in warehouses %}
+        <tr onclick="window.location='{% url 'warehouse_edit' wh.pk %}'">
+          <td>{{ wh.name }}</td>
+          <td>{{ wh.address|default:"—" }}</td>
+          <td>{% if wh.is_default %}<i class="bi bi-check-lg text-success"></i>{% endif %}</td>
+          <td>{% if wh.is_active %}<span class="badge bg-success">Действующий</span>{% else %}<span class="badge bg-secondary">Архив</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Складов пока нет — добавьте первый</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

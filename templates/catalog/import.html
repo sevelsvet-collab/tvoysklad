@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Импорт товаров — Склад{% endblock %}
+{% block page_title %}Импорт товаров из Excel{% endblock %}
+{% block content %}
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">{{ form.file.label }}</label>
+            {{ form.file }}
+            {% if form.file.errors %}<div class="text-danger small">{{ form.file.errors.0 }}</div>{% endif %}
+          </div>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-upload me-1"></i>Загрузить</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body small">
+        <p class="fw-semibold mb-2">Формат файла (первая строка — заголовки):</p>
+        <code>Наименование | Тип | Группа | Артикул | Код | Штрихкод | Ед. изм. | Ставка НДС | Закупочная цена | Цена продажи | Мин. остаток</code>
+        <ul class="mt-2 mb-0 text-muted">
+          <li>Обязательна только колонка «Наименование»</li>
+          <li>Тип: Товар / Услуга (по умолчанию — товар); Ставка НДС: 20 / 10 / 0 / Без НДС</li>
+          <li>Существующие товары обновляются по совпадению артикула</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

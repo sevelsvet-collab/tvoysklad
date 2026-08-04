@@ -1,0 +1,16 @@
+{% comment %}
+Поле выбора с живым поиском (контрагент и т.п.).
+Ожидает: field, selected (объект или None), search_url, create_url (опц.), create_label,
+placeholder, ac_params (JSON-строка статических параметров).
+{% endcomment %}
+<div class="ac"
+     data-ac-url="{{ search_url }}"
+     {% if create_url %}data-ac-create-url="{{ create_url }}" data-ac-create-label="{{ create_label|default:'Создать' }}" data-ac-inn-label="Создать по ИНН (реквизиты из DaData)"{% endif %}
+     data-ac-params='{{ ac_params|default:"{}" }}'>
+  <input type="hidden" name="{{ field.html_name }}" id="{{ field.auto_id }}"
+         value="{{ field.value|default_if_none:'' }}" class="ac-value">
+  <input type="text" class="form-control form-control-sm ac-input"
+         placeholder="{{ placeholder|default:'Начните вводить название или ИНН' }}"
+         value="{% if selected %}{{ selected.name }}{% endif %}">
+</div>
+{% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}

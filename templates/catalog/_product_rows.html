@@ -1,0 +1,15 @@
+{% load humanize %}
+{% for p in products %}
+<tr onclick="window.location='{% url 'product_edit' p.pk %}'">
+  <td class="fw-semibold">{{ p.name }}</td>
+  <td>{{ p.article|default:"—" }}</td>
+  <td>{{ p.group|default:"—" }}</td>
+  <td>{{ p.unit }}</td>
+  <td class="text-end">{{ p.purchase_price|floatformat:2|intcomma }}</td>
+  <td class="text-end">{{ p.sale_price|floatformat:2|intcomma }}</td>
+  <td>{{ p.get_vat_rate_display }}</td>
+  <td>{% if p.is_service %}<span class="badge bg-info">Услуга</span>{% else %}<span class="badge bg-light text-dark border">Товар</span>{% endif %}</td>
+</tr>
+{% empty %}
+<tr><td colspan="8" class="text-center text-muted py-4">Ничего не найдено</td></tr>
+{% endfor %}

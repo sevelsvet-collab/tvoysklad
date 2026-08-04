@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Группа товаров — Склад{% endblock %}
+{% block page_title %}{% if object %}Группа: {{ object.name }}{% else %}Новая группа{% endif %}{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 560px;">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="mb-3">
+          <label class="form-label">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+        </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
+      <a href="{% url 'product_list' %}" class="btn btn-outline-secondary">Закрыть</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

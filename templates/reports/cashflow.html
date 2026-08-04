@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Движение денег — Склад{% endblock %}
+{% block page_title %}Движение денежных средств{% endblock %}
+{% block content %}
+{% include "reports/_period_filter.html" %}
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Приход</div>
+    <div class="h4 mb-0 text-success">+{{ summary.income|floatformat:2|intcomma }} ₽</div></div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Расход</div>
+    <div class="h4 mb-0 text-danger">−{{ summary.outcome|floatformat:2|intcomma }} ₽</div></div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Чистый поток</div>
+    <div class="h4 mb-0 {% if summary.net >= 0 %}text-success{% else %}text-danger{% endif %}">{{ summary.net|floatformat:2|intcomma }} ₽</div></div></div></div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <div class="text-muted small mb-2">Приход и расход по месяцам</div>
+  <canvas id="cashChart" height="90"></canvas>
+</div></div>
+
+<div class="card">
+  <div class="card-header bg-white fw-semibold">По счетам и кассам</div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead class="table-light"><tr><th>Счёт/касса</th><th class="text-end">Приход</th><th class="text-end">Расход</th><th class="text-end">Итого</th></tr></thead>
+    <tbody>
+      {% for a in by_account %}
+      <tr><td>{{ a.account__name }}</td>
+        <td class="text-end text-success">+{{ a.income|floatformat:2|intcomma }}</td>
+        <td class="text-end text-danger">−{{ a.outcome|floatformat:2|intcomma }}</td>
+        <td class="text-end fw-semibold">{{ a.income|floatformat:2|intcomma }}</td></tr>
+      {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">Нет платежей за период</td></tr>{% endfor %}
+    </tbody></table></div>
+</div>
+
+{{ chart_labels|json_script:"chart-labels" }}
+{{ chart_income|json_script:"chart-income" }}
+{{ chart_outcome|json_script:"chart-outcome" }}
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const labels = JSON.parse(document.getElementById('chart-labels').textContent);
+  const income = JSON.parse(document.getElementById('chart-income').textContent);
+  const outcome = JSON.parse(document.getElementById('chart-outcome').textContent);
+  new Chart(document.getElementById('cashChart'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Приход', data: income, backgroundColor: '#5cb85c' },
+      { label: 'Расход', data: outcome, backgroundColor: '#d9534f' },
+    ] },
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+  });
+</script>
+{% endblock %}

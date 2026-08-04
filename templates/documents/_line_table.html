@@ -1,0 +1,52 @@
+{% comment %}Табличная часть документа. Ожидает: formset, show_price, show_vat, show_discount, show_stock (по умолч. True), price_source, warehouse_field.{% endcomment %}
+<div class="doc-lines{% if not no_outer_card %} card{% endif %}"
+     data-warehouse-field="{{ warehouse_field|default:'warehouse' }}"
+     data-stock-url="{% url 'api_product_stock' %}">
+  <div class="card-body p-0">
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="alert alert-danger m-2">{{ formset.non_form_errors }}</div>{% endif %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0 doc-table">
+        <thead class="table-light">
+          <tr>
+            <th style="width:30px;">№</th>
+            <th>Наименование</th>
+            <th class="text-end">Количество</th>
+            {% if show_stock %}<th class="text-end">Доступно</th><th class="text-end">Остаток</th>{% endif %}
+            {% if show_price %}<th class="text-end">Цена</th>{% endif %}
+            {% if show_discount %}<th class="text-end">Скидка</th>{% endif %}
+            {% if show_vat %}<th>НДС</th>{% endif %}
+            {% if show_price %}<th class="text-end">Сумма</th>{% endif %}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody class="lines-body">
+          {% for form in formset %}
+            <tr class="line-row">
+              {% include "documents/_line_cells.html" with show_stock=show_stock %}
+            </tr>
+            {% if form.errors %}<tr><td colspan="10" class="text-danger small">{{ form.errors }}</td></tr>{% endif %}
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light">
+          <tr>
+            <td></td>
+            <td class="text-muted">Позиций: <span class="total-count">0</span></td>
+            <td class="text-end fw-semibold"><span class="total-qty">0</span></td>
+            {% if show_stock %}<td></td><td></td>{% endif %}
+            {% if show_price %}<td></td>{% endif %}
+            {% if show_discount %}<td></td>{% endif %}
+            {% if show_vat %}<td></td>{% endif %}
+            {% if show_price %}<td class="text-end fw-bold"><span class="total-sum">0,00</span> ₽</td>{% endif %}
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  <div class="card-footer bg-white">
+    <button type="button" class="btn btn-sm btn-outline-primary add-line"><i class="bi bi-plus-lg me-1"></i>Добавить строку</button>
+  </div>
+  {# Шаблон пустой строки для JS #}
+  <template class="empty-form">{% with form=formset.empty_form %}{% include "documents/_line_cells.html" with show_stock=show_stock %}{% endwith %}</template>
+</div>

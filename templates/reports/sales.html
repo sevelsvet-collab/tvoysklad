@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Продажи и прибыль — Склад{% endblock %}
+{% block page_title %}Продажи и прибыль{% endblock %}
+{% block content %}
+{% include "reports/_period_filter.html" %}
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Выручка</div>
+    <div class="h4 mb-0">{{ summary.revenue|floatformat:2|intcomma }} ₽</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Себестоимость</div>
+    <div class="h4 mb-0">{{ summary.cost|floatformat:2|intcomma }} ₽</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Прибыль</div>
+    <div class="h4 mb-0 text-success">{{ summary.profit|floatformat:2|intcomma }} ₽</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Рентабельность</div>
+    <div class="h4 mb-0">{{ summary.margin|floatformat:1 }} %</div>
+    <div class="small text-muted">отгрузок: {{ summary.count }}</div></div></div></div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <div class="text-muted small mb-2">Выручка по месяцам</div>
+  <canvas id="salesChart" height="90"></canvas>
+</div></div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card"><div class="card-header bg-white fw-semibold">Топ товаров</div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead class="table-light"><tr><th>Товар</th><th class="text-end">Кол-во</th><th class="text-end">Выручка</th><th class="text-end">Прибыль</th></tr></thead>
+      <tbody>
+        {% for p in top_products %}
+        <tr><td>{{ p.product__name }}</td>
+          <td class="text-end">{{ p.qty|floatformat:"-3" }}</td>
+          <td class="text-end">{{ p.revenue|floatformat:2|intcomma }}</td>
+          <td class="text-end text-success">{{ p.profit|floatformat:2|intcomma }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">Нет продаж за период</td></tr>{% endfor %}
+      </tbody></table></div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card"><div class="card-header bg-white fw-semibold">Топ покупателей</div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead class="table-light"><tr><th>Покупатель</th><th class="text-end">Выручка</th><th class="text-end">Прибыль</th></tr></thead>
+      <tbody>
+        {% for c in top_customers %}
+        <tr><td>{{ c.shipment__customer__name }}</td>
+          <td class="text-end">{{ c.revenue|floatformat:2|intcomma }}</td>
+          <td class="text-end text-success">{{ c.profit|floatformat:2|intcomma }}</td></tr>
+        {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">Нет продаж за период</td></tr>{% endfor %}
+      </tbody></table></div></div>
+  </div>
+</div>
+
+{{ chart_labels|json_script:"chart-labels" }}
+{{ chart_values|json_script:"chart-values" }}
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const labels = JSON.parse(document.getElementById('chart-labels').textContent);
+  const values = JSON.parse(document.getElementById('chart-values').textContent);
+  new Chart(document.getElementById('salesChart'), {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'Выручка, ₽', data: values,
+      borderColor: '#337ab7', backgroundColor: 'rgba(51,122,183,.1)', fill: true, tension: .3 }] },
+    options: { responsive: true, plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } } }
+  });
+</script>
+{% endblock %}
