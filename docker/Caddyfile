@@ -1,0 +1,14 @@
+# Домен берётся из переменной DOMAIN (файл .env). Caddy сам получает
+# и продлевает бесплатный TLS-сертификат Let's Encrypt для этого домена.
+{$DOMAIN} {
+	encode gzip
+
+	# Загруженные файлы (подписи, печати, логотипы) отдаёт сам Caddy из тома media.
+	handle_path /media/* {
+		root * /app/media
+		file_server
+	}
+
+	# Всё остальное — приложению (статику раздаёт WhiteNoise внутри web).
+	reverse_proxy web:8000
+}

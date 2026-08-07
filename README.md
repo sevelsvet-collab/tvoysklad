@@ -83,64 +83,105 @@ DejaVu/Liberation (Linux); в Docker для WeasyPrint нужен пакет ш�
 
 ## Развёртывание на своём сервере (Docker)
 
-На боевом сервере всё поднимается тремя контейнерами: **Django+Gunicorn**, **PostgreSQL**, **Nginx**.
-WeasyPrint и кириллические шрифты уже включены в образ.
+На боевом сервере всё поднимается тремя контейнерами: **Django+Gunicorn**, **PostgreSQL**, **Caddy**.
+WeasyPrint и кириллические шрифты уже включены в образ. Caddy сам получает и продлевает
+бесплатный TLS-сертификат Let's Encrypt — HTTPS работает без ручной возни с certbot.
 
-### 1. Подготовка сервера
+### 1. Предварительно
 
-Нужен VPS с Ubuntu/Debian. Установите Docker:
+- VPS с Ubuntu 22.04/24.04, доступ по SSH.
+- Домен, направленный **A-записью на IP сервера** (обязательно для HTTPS — Caddy проверяет
+  владение доменом; проверьте: `ping ваш-домен` должен отвечать с IP сервера).
+- Открытые порты **80** и **443** (для Let's Encrypt и доступа к сайту).
+
+### 2. Docker на сервере
 
 ```bash
 curl -fsSL https://get.docker.com | sh
 ```
 
-### 2. Загрузка проекта и настройка
+### 3. Загрузка проекта и настройка
 
 ```bash
-git clone <ваш-репозиторий> sklad && cd sklad     # или скопируйте папку на сервер
+git clone https://github.com/<логин>/<репозиторий>.git sklad && cd sklad
 cp .env.production.example .env
-nano .env                                          # заполните ключи и пароли
+nano .env                                          # заполнить (см. ниже)
 ```
 
-Обязательно задайте в `.env`: `SECRET_KEY` (сгенерируйте — команда в комментарии файла),
-`ALLOWED_HOSTS` (ваш домен/IP), пароли БД (`POSTGRES_PASSWORD` и тот же пароль в `DATABASE_URL`),
-пароль администратора (`DJANGO_SUPERUSER_PASSWORD`).
+Обязательно задайте в `.env`:
+- `SECRET_KEY` — случайный ключ (команда генерации в комментарии файла);
+- `DOMAIN` — ваш домен (по нему Caddy выпустит сертификат);
+- `ALLOWED_HOSTS` — домен и IP сервера через запятую;
+- `CSRF_TRUSTED_ORIGINS` — `https://ваш-домен`;
+- `POSTGRES_PASSWORD` и тот же пароль внутри `DATABASE_URL`;
+- `DJANGO_SUPERUSER_PASSWORD` — пароль администратора.
 
-### 3. Запуск
+Для отправки счетов на почту заполните блок `EMAIL_*` (см. раздел «Почта» ниже);
+если оставить `EMAIL_HOST` пустым — письма просто не отправляются (остальное работает).
+
+### 4. Запуск
 
 ```bash
 docker compose up -d --build
 ```
 
 При первом старте контейнер сам применит миграции, соберёт статику, создаст роли и
-администратора. Откройте `http://<ваш-сервер>` — вход под `DJANGO_SUPERUSER_USERNAME`.
+администратора; Caddy получит сертификат. Через минуту откройте **https://ваш-домен** —
+вход под `DJANGO_SUPERUSER_USERNAME`. Смените пароль администратора после первого входа.
 
 Полезные команды:
 
 ```bash
 docker compose logs -f web        # логи приложения
+docker compose logs -f caddy      # логи веб-сервера (выпуск сертификата)
 docker compose ps                 # статус контейнеров
-docker compose down               # остановить
+docker compose down               # остановить (данные БД сохраняются)
 docker compose up -d --build      # обновить после изменений кода
-docker compose exec web python manage.py seed_demo   # демо-данные (необязательно)
 ```
 
-### 4. HTTPS (домен + бесплатный сертификат)
+### 5. Обновление кода (после `git push` с рабочей машины)
 
-1. Направьте A-запись домена на IP сервера.
-2. Проще всего поставить certbot на хост-сервер и проксировать в контейнер, либо заменить
-   `docker/nginx.conf` на конфиг с портом 443 и смонтировать сертификаты Let's Encrypt в Nginx-контейнер.
-3. После включения HTTPS в `.env` выставьте `SECURE_COOKIES=True`, `SECURE_SSL_REDIRECT=True`,
-   при желании `SECURE_HSTS_SECONDS=31536000`, добавьте домен в `CSRF_TRUSTED_ORIGINS`,
-   и перезапустите: `docker compose up -d`.
+```bash
+cd sklad
+docker compose exec db pg_dump -U sklad sklad > backup_$(date +%F).sql   # бэкап на всякий случай
+git pull
+docker compose up -d --build      # пересобрать и перезапустить (миграции применятся сами)
+```
 
-### 5. Резервные копии базы
+### 6. Почта (отправка счетов на e-mail)
+
+Заполните в `.env` (пример для Яндекс 360):
+
+```
+EMAIL_HOST=smtp.yandex.ru
+EMAIL_PORT=465
+EMAIL_HOST_USER=sklad@ваш-домен.ru
+EMAIL_HOST_PASSWORD=пароль-приложения
+EMAIL_USE_SSL=True
+EMAIL_USE_TLS=False
+DEFAULT_FROM_EMAIL=sklad@ваш-домен.ru
+```
+
+`EMAIL_HOST_PASSWORD` — это **пароль приложения**, а не обычный пароль от почты. Его выдаёт
+почтовый сервис для сторонних программ при включённой двухфакторной аутентификации:
+Яндекс — id.yandex.ru → Безопасность → Пароли приложений (тип «Почта»);
+Mail.ru — Пароль и безопасность → Пароли для внешних приложений;
+Gmail — myaccount.google.com → Безопасность → Пароли приложений (нужна 2FA).
+После правки `.env` перезапустите: `docker compose up -d`.
+
+### 7. Резервные копии базы
 
 ```bash
 # бэкап
 docker compose exec db pg_dump -U sklad sklad > backup_$(date +%F).sql
 # восстановление
 cat backup.sql | docker compose exec -T db psql -U sklad sklad
+```
+
+Для регулярных бэкапов добавьте команду бэкапа в `crontab -e`, например ежедневно в 3:00:
+
+```
+0 3 * * * cd /root/sklad && docker compose exec -T db pg_dump -U sklad sklad > /root/backups/sklad_$(date +\%F).sql
 ```
 
 > Windows-разработка: WeasyPrint не запускается без GTK — PDF локально генерирует
@@ -162,6 +203,6 @@ cat backup.sql | docker compose exec -T db psql -U sklad sklad
 - [x] Модуль 4 — печатные формы PDF: Счёт на оплату, ТОРГ-12, Акт, УПД; сумма прописью; PDF + HTML-предпросмотр
 - [x] Модуль 5 — деньги: кассы/счета, входящие/исходящие платежи, автостатус оплаты счетов, остатки денег, взаиморасчёты по контрагентам
 - [x] Модуль 6 — отчёты и дашборд: продажи/прибыль за период, ДДС, топ товаров/клиентов, графики (Chart.js), просроченные счета
-- [x] Модуль 7 — развёртывание на VPS: Docker (web + PostgreSQL + Nginx), WeasyPrint+шрифты в образе, WhiteNoise, HTTPS-инструкция, бэкапы
+- [x] Модуль 7 — развёртывание на VPS: Docker (web + PostgreSQL + Caddy с авто-HTTPS), WeasyPrint+шрифты в образе, WhiteNoise, отправка почты, бэкапы
 
 Полный план: `C:\Users\Andrew\.claude\plans\quizzical-sleeping-nova.md`
