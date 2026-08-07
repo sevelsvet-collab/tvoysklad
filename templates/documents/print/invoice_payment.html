@@ -25,8 +25,25 @@
   </tr>
 </table>
 
+{% if payment_qr %}
+<table class="mt" style="table-layout:fixed">
+  <colgroup><col><col style="width:130pt"></colgroup>
+  <tr style="vertical-align:top">
+    <td>
+      <div class="title">Счёт на оплату № {{ doc.number }} от {{ doc.date|date:"d.m.Y" }} г.</div>
+      <div class="small muted mt">Отсканируйте QR-код в мобильном приложении банка —<br>реквизиты и сумма подставятся автоматически.</div>
+    </td>
+    <td class="center">
+      <img src="{{ payment_qr }}" style="width:120pt;height:120pt">
+      <div class="small muted center">Оплата по QR</div>
+    </td>
+  </tr>
+</table>
+<hr>
+{% else %}
 <div class="mt title">Счёт на оплату № {{ doc.number }} от {{ doc.date|date:"d.m.Y" }} г.</div>
 <hr>
+{% endif %}
 
 <table class="mt">
   <tr><td style="width:90pt" class="muted">Поставщик:</td>

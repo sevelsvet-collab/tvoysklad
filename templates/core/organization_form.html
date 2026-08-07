@@ -54,7 +54,12 @@
       <div class="card mb-3">
         <div class="card-body">
           {% for field in form %}
-            {% if field.name in "vat_payer,is_default,is_active" %}
+            {% if field.name == "default_vat_rate" %}
+              <div class="mb-3">
+                <label class="form-label">{{ field.label }}</label>
+                {{ field }}
+              </div>
+            {% elif field.name in "vat_payer,allow_negative_stock,is_default,is_active" %}
               <div class="form-check mb-2">
                 {{ field }}
                 <label class="form-check-label">{{ field.label }}</label>

@@ -1,0 +1,56 @@
+{% if with_qr %}{% url 'send_invoice_email_qr' invoice.pk as post_url %}{% else %}{% url 'send_invoice_email' invoice.pk as post_url %}{% endif %}
+<div class="modal fade" id="emailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="{{ post_url }}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">
+            {% if with_qr %}<i class="bi bi-qr-code me-1"></i>Отправить счёт с QR{% else %}<i class="bi bi-envelope me-1"></i>Отправить счёт{% endif %}
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          {% if not invoice.customer.email %}
+          <div class="alert alert-warning py-2 small">
+            У контрагента не указан e-mail — впишите адрес получателя вручную.
+          </div>
+          {% endif %}
+          <div class="mb-3">
+            <label class="form-label">{{ form.to_email.label }}</label>
+            {{ form.to_email }}
+            {% if form.to_email.errors %}<div class="text-danger small">{{ form.to_email.errors|striptags }}</div>{% endif %}
+            <div class="form-text">{{ form.to_email.help_text }}</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">{{ form.subject.label }}</label>
+            {{ form.subject }}
+            {% if form.subject.errors %}<div class="text-danger small">{{ form.subject.errors|striptags }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label">{{ form.message.label }}</label>
+            {{ form.message }}
+            {% if form.message.errors %}<div class="text-danger small">{{ form.message.errors|striptags }}</div>{% endif %}
+          </div>
+          <div class="small text-muted">
+            <i class="bi bi-paperclip me-1"></i>Вложение: PDF-файл счёта{% if with_qr %} с QR-кодом{% endif %}.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Закрыть</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1"></i>Отправить письмо</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+  // Модалка приходит по HTMX — показываем и подчищаем DOM после закрытия.
+  (function () {
+    var el = document.getElementById('emailModal');
+    if (!el) return;
+    var modal = new bootstrap.Modal(el);
+    el.addEventListener('hidden.bs.modal', function () { el.remove(); });
+    modal.show();
+  })();
+</script>

@@ -19,7 +19,17 @@
         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-printer me-1"></i>Печать</button>
         <ul class="dropdown-menu">
           <li><a class="dropdown-item" target="_blank" href="{% url 'print_invoice_payment' object.pk %}">Счёт на оплату (PDF)</a></li>
+          <li><a class="dropdown-item" target="_blank" href="{% url 'print_invoice_payment_qr' object.pk %}"><i class="bi bi-qr-code me-1"></i>Счёт с QR-кодом (PDF)</a></li>
+          <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" target="_blank" href="{% url 'print_invoice_payment' object.pk %}?fmt=html">Счёт — просмотр (HTML)</a></li>
+          <li><a class="dropdown-item" target="_blank" href="{% url 'print_invoice_payment_qr' object.pk %}?fmt=html">Счёт с QR — просмотр (HTML)</a></li>
+        </ul>
+      </div>
+      <div class="dropdown d-inline-block ms-1">
+        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-envelope me-1"></i>Отправить</button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="#" hx-get="{% url 'send_invoice_email' object.pk %}" hx-target="#modal-mount" hx-swap="innerHTML">Счёт на оплату</a></li>
+          <li><a class="dropdown-item" href="#" hx-get="{% url 'send_invoice_email_qr' object.pk %}" hx-target="#modal-mount" hx-swap="innerHTML"><i class="bi bi-qr-code me-1"></i>Счёт с QR-кодом</a></li>
         </ul>
       </div>
     {% endif %}
@@ -75,5 +85,7 @@
   {% include "documents/_line_table.html" with show_stock=True show_price=True show_vat=True show_discount=True price_source="sale" %}
   {% endif %}
 </form>
+{# Точка монтирования модалки отправки (вне основной формы — чтобы не было вложенных form) #}
+<div id="modal-mount"></div>
 {% endblock %}
 {% block scripts %}<script src="{% static 'js/doc-lines.js' %}{% if asset_version %}?v={{ asset_version }}{% endif %}"></script>{% endblock %}

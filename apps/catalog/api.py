@@ -41,6 +41,7 @@ def _serialize(product, stock, price_source):
         # Доступно = остаток − резерв. Резервов пока нет → равно остатку.
         "available": stock_val,
         "is_service": product.is_service,
+        "vat_rate": product.vat_rate,
         "label": f"{product.name}" + (f" ({product.article})" if product.article else ""),
     }
 

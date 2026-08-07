@@ -71,6 +71,7 @@ def navigation(request):
             ("Платежи", "payment_list", ["payment_"]),
             ("Счета и кассы", "account_list", ["account_"]),
             ("Взаиморасчёты", "settlements", ["settlements"]),
+            ("Корректировки", "correction_list", ["correction_list", "cash_correction_", "bank_correction_", "account_correction_", "settlement_correction_"]),
         ]),
         section("reports", "Отчёты", "bi-bar-chart", [
             ("Продажи и прибыль", "report_sales", ["report_sales"]),

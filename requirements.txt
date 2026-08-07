@@ -3,7 +3,12 @@ django-environ>=0.12
 Pillow>=11.0
 openpyxl>=3.1
 num2words>=0.5.13
+qrcode>=7.4
 weasyprint>=63.0
+# Playwright — движок PDF для Windows-разработки, где WeasyPrint без GTK
+# недоступен. Рендерит как Chromium (ровные таблицы ТОРГ-12/УПД).
+# После установки выполнить: python -m playwright install chromium
+playwright>=1.40
 xhtml2pdf>=0.2.16
 gunicorn>=23.0
 psycopg[binary]>=3.2

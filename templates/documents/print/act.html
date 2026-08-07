@@ -42,12 +42,12 @@
     <td style="width:50%;vertical-align:top">
       <div class="bold">Исполнитель</div>
       <table class="mt">
-        <tr><td style="border-bottom:0.75pt solid #000;position:relative;width:150pt;height:34pt">
-          {% if org_signature %}<img src="{{ org_signature }}" class="sign-img" style="position:absolute;bottom:2pt;left:15pt">{% endif %}</td>
+        <tr><td style="width:150pt;height:38pt;vertical-align:bottom;border-bottom:0.75pt solid #000">
+          {% if org_signature %}<img src="{{ org_signature }}" class="sign-img">{% endif %}</td>
           <td class="center" style="width:130pt;vertical-align:bottom">{{ org.director_name }}</td></tr>
         <tr><td class="center small muted">подпись</td><td class="center small muted">расшифровка</td></tr>
       </table>
-      {% if org_stamp %}<img src="{{ org_stamp }}" class="stamp-img" style="margin-top:4pt">{% endif %}
+      {% if org_stamp %}<img src="{{ org_stamp }}" class="stamp-img">{% endif %}
     </td>
     <td style="width:50%;vertical-align:top">
       <div class="bold">Заказчик</div>

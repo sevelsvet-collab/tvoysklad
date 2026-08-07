@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path("sales/invoices/", views.InvoiceListView.as_view(), name="invoice_list"),
+    path("sales/invoices/bulk-delete/", views.invoice_bulk_delete, name="invoice_bulk_delete"),
     path("sales/invoices/new/", views.InvoiceCreateView.as_view(), name="invoice_create"),
     path("sales/invoices/<int:pk>/", views.InvoiceUpdateView.as_view(), name="invoice_edit"),
     path("sales/invoices/<int:pk>/post/", views.invoice_post, name="invoice_post"),

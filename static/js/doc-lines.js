@@ -168,6 +168,11 @@
         var item = e.detail || {};
         if (price && item.price && !parseFloat(price.value)) price.value = item.price;
         if (qty && !parseFloat(qty.value)) qty.value = 1;
+        // Заполняем НДС из товара (если передан)
+        if (item.vat_rate !== undefined && item.vat_rate !== null) {
+          var vatSel = tr.querySelector('select[name$="-vat_rate"]');
+          if (vatSel) vatSel.value = item.vat_rate;
+        }
         renderRowStock(tr, item.stock, item.available, item.unit);
         recalc(root);
         ensureTrailingRow(root, true);
@@ -209,6 +214,12 @@
     var tr = document.createElement('tr');
     tr.className = 'line-row';
     tr.innerHTML = tmpl.innerHTML.replace(/__prefix__/g, idx);
+    // Проставляем НДС по умолчанию из организации
+    var defaultVat = root.dataset.defaultVat;
+    if (defaultVat) {
+      var vatSel = tr.querySelector('select[name$="-vat_rate"]');
+      if (vatSel) vatSel.value = defaultVat;
+    }
     tbody.appendChild(tr);
     totalForms.value = idx + 1;
     bindRow(tr, root);

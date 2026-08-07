@@ -6,42 +6,297 @@
 <a href="{% url 'invoice_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Счёт</a>
 {% endblock %}
 {% block content %}
-<form method="get" class="d-flex gap-2 mb-3 flex-wrap">
-  <input type="search" name="q" class="form-control form-control-sm" style="max-width:320px;"
-         placeholder="Номер или покупатель" value="{{ request.GET.q|default:'' }}">
-  <select name="status" class="form-select form-select-sm" style="max-width:180px;" onchange="this.form.submit()">
-    <option value="">Все статусы</option>
-    <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>Черновики</option>
-    <option value="issued" {% if request.GET.status == 'issued' %}selected{% endif %}>Выставленные</option>
-  </select>
-  <button class="btn btn-sm btn-outline-secondary">Найти</button>
-</form>
-<div class="card">
-  <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-      <thead class="table-light">
-        <tr>
-          <th>№</th><th>Дата</th><th>Покупатель</th><th>Со склада</th>
-          <th class="text-end">Сумма</th><th class="text-end">Оплачено</th><th class="text-end">Отгружено</th><th>Статус</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for inv in invoices %}
-        <tr onclick="window.location='{% url 'invoice_edit' inv.pk %}'">
-          <td class="fw-semibold">{{ inv.number }}</td>
-          <td>{{ inv.date|date:"d.m.Y" }}</td>
-          <td>{{ inv.customer.name }}</td>
-          <td>{{ inv.warehouse.name }}</td>
-          <td class="text-end">{{ inv.total|floatformat:2|intcomma }}</td>
-          <td class="text-end">{% if inv.paid_amount %}{{ inv.paid_amount|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
-          <td class="text-end">{% if inv.shipped_amount %}{{ inv.shipped_amount|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
-          <td>{% if inv.is_posted %}<span class="badge bg-primary">Выставлен</span>{% else %}<span class="badge bg-secondary">Черновик</span>{% endif %}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-4">Счетов пока нет</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+{# ── Панель фильтров + шестерёнка ── #}
+<div class="d-flex gap-2 mb-2 align-items-center flex-wrap">
+  <form method="get" id="search-form" class="d-flex gap-2 flex-wrap">
+    <input type="hidden" name="per_page" value="{{ request.GET.per_page|default:'50' }}">
+    <input type="search" name="q" class="form-control form-control-sm" style="max-width:280px;"
+           placeholder="Номер или покупатель" value="{{ request.GET.q|default:'' }}">
+    <select name="status" class="form-select form-select-sm" style="max-width:160px;" onchange="this.form.submit()">
+      <option value="">Все статусы</option>
+      <option value="draft"  {% if request.GET.status == 'draft'  %}selected{% endif %}>Черновики</option>
+      <option value="issued" {% if request.GET.status == 'issued' %}selected{% endif %}>Выставленные</option>
+    </select>
+    <button class="btn btn-sm btn-outline-secondary">Найти</button>
+  </form>
+
+  {# Количество строк #}
+  <div class="d-flex gap-1 ms-2">
+    {% for n in "25,50,100"|cut:" "|ljust:"1" %}{% endfor %}
+    {% for n in perpage_choices %}
+    <a href="?q={{ request.GET.q|default:'' }}&status={{ request.GET.status|default:'' }}&per_page={{ n }}"
+       class="btn btn-sm {% if current_per_page == n %}btn-secondary{% else %}btn-outline-secondary{% endif %}">{{ n }}</a>
+    {% endfor %}
+  </div>
+
+  {# Шестерёнка настройки колонок #}
+  <div class="dropdown ms-auto">
+    <button class="btn btn-sm btn-outline-secondary" type="button"
+            data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+            title="Настройка столбцов">
+      <i class="bi bi-gear-fill"></i>
+    </button>
+    <div class="dropdown-menu dropdown-menu-end p-0" style="min-width:230px;max-height:420px;overflow-y:auto;">
+      <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
+        <span class="small fw-semibold">Столбцы</span>
+        <button type="button" class="btn btn-link btn-sm p-0 text-secondary" id="cols-reset">Сбросить</button>
+      </div>
+      <div id="col-settings" class="py-1"></div>
+    </div>
   </div>
 </div>
+
+{# ── Панель массовых действий (скрыта по умолчанию) ── #}
+<div id="bulk-bar" class="d-none alert alert-secondary py-2 mb-2">
+  <div class="d-flex align-items-center gap-3">
+    <span class="small">Выбрано: <b id="bulk-count">0</b></span>
+    <button type="submit" form="bulk-form" name="action" value="delete"
+            class="btn btn-sm btn-danger"
+            onclick="return confirm('Удалить выбранные счета?')">
+      <i class="bi bi-trash me-1"></i>Удалить выбранные
+    </button>
+    <button type="button" class="btn btn-sm btn-link text-secondary ms-auto p-0" id="clear-sel">
+      Снять выделение
+    </button>
+  </div>
+</div>
+
+{# ── Таблица (внутри bulk-form для чекбоксов) ── #}
+<form method="post" action="{% url 'invoice_bulk_delete' %}" id="bulk-form">
+  {% csrf_token %}
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 small" id="inv-table">
+        <thead class="table-light">
+          <tr>
+            <th style="width:32px;">
+              <input type="checkbox" class="form-check-input" id="select-all">
+            </th>
+            <th data-col="number">№</th>
+            <th data-col="time">Время</th>
+            <th data-col="customer">Контрагент</th>
+            <th data-col="organization">Организация</th>
+            <th data-col="warehouse">Со склада</th>
+            <th data-col="total"   class="text-end">Сумма</th>
+            <th data-col="due_date">План. дата оплаты</th>
+            <th data-col="paid"    class="text-end">Оплачено</th>
+            <th data-col="unpaid"  class="text-end">Не оплачено</th>
+            <th data-col="shipped" class="text-end">Отгружено</th>
+            <th data-col="comment">Комментарий</th>
+            <th data-col="status">Статус</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices %}
+          <tr class="inv-row" data-url="{% url 'invoice_edit' inv.pk %}" style="cursor:pointer;">
+            <td class="ps-2" onclick="event.stopPropagation()">
+              <input type="checkbox" name="ids" value="{{ inv.pk }}" class="form-check-input row-check">
+            </td>
+            <td data-col="number" class="fw-semibold text-primary">{{ inv.number }}</td>
+            <td data-col="time" class="text-muted">
+              {{ inv.date|date:"d.m" }}<br>
+              <span style="font-size:11px;">{{ inv.created_at|date:"H:i" }}</span>
+            </td>
+            <td data-col="customer">{{ inv.customer.name }}</td>
+            <td data-col="organization" class="text-muted">{{ inv.organization.name }}</td>
+            <td data-col="warehouse" class="text-muted">{{ inv.warehouse.name }}</td>
+            <td data-col="total" class="text-end fw-semibold">{{ inv.row_total|floatformat:2|intcomma }}</td>
+            <td data-col="due_date" class="text-muted">
+              {% if inv.due_date %}{{ inv.due_date|date:"d.m.Y" }}{% else %}—{% endif %}
+            </td>
+            <td data-col="paid" class="text-end">
+              {% if inv.paid_amount %}
+                <span class="{% if inv.row_paid_pct >= 100 %}text-success fw-semibold{% endif %}">
+                  {{ inv.paid_amount|floatformat:2|intcomma }}
+                </span>
+                <div class="progress mt-1" style="height:3px;min-width:50px;">
+                  <div class="progress-bar bg-success" style="width:{{ inv.row_paid_pct }}%"></div>
+                </div>
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td data-col="unpaid" class="text-end">
+              {% if inv.row_unpaid %}
+                <span class="text-danger">{{ inv.row_unpaid|floatformat:2|intcomma }}</span>
+              {% else %}<span class="text-success">—</span>{% endif %}
+            </td>
+            <td data-col="shipped" class="text-end">
+              {% if inv.row_shipped %}
+                <span class="{% if inv.row_shipped_pct >= 100 %}text-success fw-semibold{% endif %}">
+                  {{ inv.row_shipped|floatformat:2|intcomma }}
+                </span>
+                <div class="progress mt-1" style="height:3px;min-width:50px;">
+                  <div class="progress-bar bg-info" style="width:{{ inv.row_shipped_pct }}%"></div>
+                </div>
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td data-col="comment" class="text-muted">{{ inv.comment|truncatechars:40 }}</td>
+            <td data-col="status">
+              {% if inv.is_posted %}
+                <span class="badge text-bg-primary">Выставлен</span>
+              {% else %}
+                <span class="badge text-bg-secondary">Черновик</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="13" class="text-center text-muted py-4">Счетов пока нет</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+
+{# Пагинация #}
+{% if is_paginated %}
+<nav class="mt-3">
+  <ul class="pagination pagination-sm justify-content-center mb-0">
+    {% if page_obj.has_previous %}
+    <li class="page-item">
+      <a class="page-link" href="?q={{ request.GET.q|default:'' }}&status={{ request.GET.status|default:'' }}&per_page={{ request.GET.per_page|default:'50' }}&page={{ page_obj.previous_page_number }}">‹</a>
+    </li>
+    {% endif %}
+    {% for num in paginator.page_range %}
+      {% if page_obj.number == num %}
+        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+      {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+        <li class="page-item">
+          <a class="page-link" href="?q={{ request.GET.q|default:'' }}&status={{ request.GET.status|default:'' }}&per_page={{ request.GET.per_page|default:'50' }}&page={{ num }}">{{ num }}</a>
+        </li>
+      {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <li class="page-item">
+      <a class="page-link" href="?q={{ request.GET.q|default:'' }}&status={{ request.GET.status|default:'' }}&per_page={{ request.GET.per_page|default:'50' }}&page={{ page_obj.next_page_number }}">›</a>
+    </li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
+<script>
+(function() {
+  const COLS_KEY = 'sklad_invoice_cols';
+  const COLUMNS = [
+    {key:'number',       label:'№',                  def:true,  available:true},
+    {key:'time',         label:'Время',               def:true,  available:true},
+    {key:'customer',     label:'Контрагент',          def:true,  available:true},
+    {key:'organization', label:'Организация',         def:true,  available:true},
+    {key:'warehouse',    label:'Со склада',           def:true,  available:true},
+    {key:'total',        label:'Сумма',               def:true,  available:true},
+    {key:'due_date',     label:'План. дата оплаты',   def:false, available:true},
+    {key:'paid',         label:'Оплачено',            def:true,  available:true},
+    {key:'unpaid',       label:'Не оплачено',         def:false, available:true},
+    {key:'shipped',      label:'Отгружено',           def:true,  available:true},
+    {key:'comment',      label:'Комментарий',         def:false, available:true},
+    {key:'status',       label:'Статус',              def:true,  available:true},
+    // Будущие колонки
+    {key:'printed',      label:'Напечатан',           def:false, available:false},
+    {key:'sent',         label:'Отправлен',           def:false, available:false},
+    {key:'contract',     label:'Договор',             def:false, available:false},
+    {key:'project',      label:'Проект',              def:false, available:false},
+    {key:'changed_at',   label:'Когда изменён',       def:false, available:false},
+    {key:'changed_by',   label:'Кто изменил',         def:false, available:false},
+  ];
+
+  function loadVis() {
+    try { return JSON.parse(localStorage.getItem(COLS_KEY)) || {}; }
+    catch(e) { return {}; }
+  }
+
+  function isVisible(col, vis) {
+    return vis[col.key] !== undefined ? vis[col.key] : col.def;
+  }
+
+  function applyVisibility(vis) {
+    COLUMNS.forEach(col => {
+      const show = isVisible(col, vis) && col.available;
+      document.querySelectorAll('[data-col="' + col.key + '"]').forEach(el => {
+        el.style.display = show ? '' : 'none';
+      });
+    });
+  }
+
+  function buildPanel(vis) {
+    const panel = document.getElementById('col-settings');
+    panel.innerHTML = '';
+    COLUMNS.forEach(col => {
+      const checked = isVisible(col, vis);
+      const lbl = document.createElement('label');
+      lbl.className = 'd-flex align-items-center gap-2 px-3 py-1' + (!col.available ? ' text-muted' : '');
+      lbl.style.cursor = col.available ? 'pointer' : 'default';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'form-check-input flex-shrink-0';
+      cb.checked = checked;
+      cb.disabled = !col.available;
+      lbl.appendChild(cb);
+      const span = document.createElement('span');
+      span.textContent = col.label;
+      lbl.appendChild(span);
+      if (!col.available) {
+        const badge = document.createElement('span');
+        badge.className = 'badge text-bg-light border text-muted ms-auto';
+        badge.style.fontSize = '9px';
+        badge.textContent = 'Скоро';
+        lbl.appendChild(badge);
+      }
+      if (col.available) {
+        cb.addEventListener('change', function() {
+          vis[col.key] = this.checked;
+          localStorage.setItem(COLS_KEY, JSON.stringify(vis));
+          applyVisibility(vis);
+        });
+      }
+      panel.appendChild(lbl);
+    });
+  }
+
+  // Сброс настроек
+  document.getElementById('cols-reset').addEventListener('click', function() {
+    localStorage.removeItem(COLS_KEY);
+    const vis = {};
+    buildPanel(vis);
+    applyVisibility(vis);
+  });
+
+  // Инициализация видимости колонок
+  const vis = loadVis();
+  applyVisibility(vis);
+  buildPanel(vis);
+
+  // ── Клик по строке ──
+  document.querySelectorAll('.inv-row').forEach(row => {
+    row.addEventListener('click', function(e) {
+      if (e.target.tagName === 'INPUT') return;
+      window.location = this.dataset.url;
+    });
+  });
+
+  // ── Массовый выбор ──
+  function updateBulkBar() {
+    const n = document.querySelectorAll('.row-check:checked').length;
+    document.getElementById('bulk-count').textContent = n;
+    const bar = document.getElementById('bulk-bar');
+    if (n > 0) { bar.classList.remove('d-none'); }
+    else        { bar.classList.add('d-none'); }
+  }
+
+  document.getElementById('select-all').addEventListener('change', function() {
+    document.querySelectorAll('.row-check').forEach(cb => cb.checked = this.checked);
+    updateBulkBar();
+  });
+
+  document.querySelectorAll('.row-check').forEach(cb => {
+    cb.addEventListener('change', updateBulkBar);
+  });
+
+  document.getElementById('clear-sel').addEventListener('click', function() {
+    document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
+    document.getElementById('select-all').checked = false;
+    updateBulkBar();
+  });
+})();
+</script>
 {% endblock %}

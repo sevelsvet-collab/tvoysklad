@@ -6,9 +6,11 @@
   @page { size: {% block page_size %}A4 portrait{% endblock %}; margin: 1.2cm; }
   body { font-family: 'DejaVu', Arial, sans-serif; font-size: 9pt; color: #000; }
   table { border-collapse: collapse; width: 100%; }
-  td, th { vertical-align: middle; }
+  td, th { vertical-align: middle; word-break: break-word; overflow-wrap: break-word; }
   .b td, .b th { border: 0.75pt solid #000; padding: 2pt 4pt; }
+  .items td, .items th { border: 0.75pt solid #000; padding: 1.5pt 2pt; }
   .small { font-size: 7.5pt; }
+  .xsmall { font-size: 6.5pt; }
   .right { text-align: right; }
   .center { text-align: center; }
   .bold { font-weight: bold; }
@@ -17,8 +19,9 @@
   .mt { margin-top: 10pt; }
   .mt2 { margin-top: 18pt; }
   .nowrap { white-space: nowrap; }
-  .sign-img { height: 40pt; }
-  .stamp-img { height: 90pt; }
+  .sign-img { height: 40pt; display: block; margin: 2pt 0 0 15pt; }
+  .stamp-img { height: 90pt; display: block; margin-top: 4pt; }
+  .sign-line { border-bottom: 0.75pt solid #000; min-height: 32pt; width: 150pt; display: inline-block; vertical-align: bottom; }
   hr { border: none; border-top: 1pt solid #000; }
 </style>
 </head>

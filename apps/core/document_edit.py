@@ -22,6 +22,15 @@ class LineDocumentMixin:
         ctx = super().get_context_data(**kwargs)
         if "formset" not in ctx:
             ctx["formset"] = self.get_formset(self.request.POST or None)
+        # НДС по умолчанию из организации документа
+        obj = getattr(self, "object", None)
+        org = None
+        if obj and obj.pk and getattr(obj, "organization_id", None):
+            org = obj.organization
+        if not org:
+            from apps.core.models import Organization
+            org = Organization.get_default()
+        ctx["default_vat_rate"] = org.default_vat_rate if org else "20"
         return ctx
 
     @transaction.atomic

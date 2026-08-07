@@ -42,11 +42,58 @@ def _weasyprint_html_class():
 
 
 def render_pdf(html_string, base_url=None):
-    """HTML-строка → bytes PDF. Возвращает (pdf_bytes, engine_name)."""
+    """HTML-строка → bytes PDF. Возвращает (pdf_bytes, engine_name).
+
+    Приоритет движков:
+    1. WeasyPrint — боевой Linux (Docker), идеальный CSS-рендер таблиц.
+    2. Playwright (headless Chromium) — для Windows-разработки, где WeasyPrint
+       без GTK недоступен. Рендерит как настоящий браузер: сложные таблицы
+       ТОРГ-12/УПД выходят ровно.
+    3. xhtml2pdf — последний откат (чистый Python), но плохо считает широкие
+       таблицы с большим числом узких колонок.
+    """
     html_class = _weasyprint_html_class()
     if html_class:
         return html_class(string=html_string, base_url=base_url).write_pdf(), "weasyprint"
+    pdf = _render_with_playwright(html_string)
+    if pdf is not None:
+        return pdf, "playwright"
     return _render_with_xhtml2pdf(html_string), "xhtml2pdf"
+
+
+_PLAYWRIGHT_OK = None  # None = не проверяли; False = недоступен
+
+
+def _render_with_playwright(html_string):
+    """HTML → PDF через headless Chromium. None, если Playwright не установлен/не запустился.
+
+    Картинки подписи/печати передаются как data: URI, поэтому base_url не нужен.
+    @page-правила (A4 landscape и т.п.) применяются через prefer_css_page_size.
+    """
+    global _PLAYWRIGHT_OK
+    if _PLAYWRIGHT_OK is False:
+        return None
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        _PLAYWRIGHT_OK = False
+        logger.info("Playwright не установлен — PDF будет через xhtml2pdf")
+        return None
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.set_content(html_string, wait_until="load")
+                pdf = page.pdf(prefer_css_page_size=True, print_background=True)
+            finally:
+                browser.close()
+        _PLAYWRIGHT_OK = True
+        return pdf
+    except Exception:  # noqa: BLE001 — не удалось запустить браузер
+        logger.exception("Playwright не смог отрендерить PDF")
+        _PLAYWRIGHT_OK = False
+        return None
 
 
 def _find_font_pair():

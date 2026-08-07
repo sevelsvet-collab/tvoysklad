@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Корректировка взаиморасчётов — Склад{% endblock %}
+{% block page_title %}
+  {% if object %}Корректировка взаиморасчётов № {{ object.number }}
+  {% else %}Новая корректировка взаиморасчётов{% endif %}
+{% endblock %}
+{% block content %}
+{% url 'api_counterparty_search' as cp_search_url %}
+{% url 'api_counterparty_quick_create' as cp_create_url %}
+<form id="doc-action" method="post">{% csrf_token %}</form>
+<form method="post">
+  {% csrf_token %}
+  <div class="mb-3">
+    {% url 'correction_list' as list_url %}
+    {% include "documents/_doc_toolbar.html" with post_url_name="settlement_correction_post" unpost_url_name="settlement_correction_unpost" delete_url_name="settlement_correction_delete" list_url=list_url save_post_label="Сохранить и провести" post_label="Провести" posted_label="Проведена" %}
+  </div>
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card mb-3" style="max-width:640px;">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4"><label class="form-label">Дата</label>{{ form.date }}</div>
+        <div class="col-md-8"><label class="form-label">Организация</label>{{ form.organization }}</div>
+        <div class="col-12"><label class="form-label">Контрагент</label>
+          {% include "documents/_ac_field.html" with field=form.counterparty selected=form.instance.counterparty search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" %}
+          {% if form.counterparty.errors %}<div class="text-danger small">{{ form.counterparty.errors.0 }}</div>{% endif %}</div>
+        <div class="col-md-7"><label class="form-label">Направление</label>{{ form.direction }}
+          <div class="form-text">Куда сместить сальдо взаиморасчётов.</div></div>
+        <div class="col-md-5"><label class="form-label">Сумма, ₽</label>{{ form.amount }}
+          {% if form.amount.errors %}<div class="text-danger small">{{ form.amount.errors.0 }}</div>{% endif %}</div>
+        <div class="col-12"><label class="form-label">Комментарий</label>{{ form.comment }}</div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

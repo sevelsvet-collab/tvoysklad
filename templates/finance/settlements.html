@@ -15,6 +15,7 @@
           <th class="text-end">Закупки</th>
           <th class="text-end">Оплатили ему</th>
           <th class="text-end">Возврат ему</th>
+          <th class="text-end">Корректировка</th>
           <th class="text-end">Сальдо</th>
         </tr>
       </thead>
@@ -28,6 +29,7 @@
           <td class="text-end">{{ r.purch|floatformat:2|intcomma }}</td>
           <td class="text-end">{{ r.paid_out|floatformat:2|intcomma }}</td>
           <td class="text-end">{% if r.supp_return %}{{ r.supp_return|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+          <td class="text-end">{% if r.correction %}<span class="{% if r.correction < 0 %}text-danger{% else %}text-success{% endif %}">{% if r.correction > 0 %}+{% endif %}{{ r.correction|floatformat:2|intcomma }}</span>{% else %}—{% endif %}</td>
           <td class="text-end fw-bold {% if r.balance > 0 %}text-success{% elif r.balance < 0 %}text-danger{% endif %}">
             {{ r.balance|floatformat:2|intcomma }}
             {% if r.balance > 0 %}<div class="small text-muted">нам должны</div>
@@ -35,7 +37,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-4">Пока нет движений по контрагентам</td></tr>
+        <tr><td colspan="9" class="text-center text-muted py-4">Пока нет движений по контрагентам</td></tr>
         {% endfor %}
       </tbody>
     </table>

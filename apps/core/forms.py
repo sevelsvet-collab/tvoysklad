@@ -58,7 +58,7 @@ class OrganizationForm(BootstrapFormMixin, forms.ModelForm):
             "bank_name", "bik", "bank_account", "corr_account",
             "director_position", "director_name", "accountant_name",
             "signature", "stamp", "logo",
-            "vat_payer", "is_default", "is_active",
+            "vat_payer", "default_vat_rate", "allow_negative_stock", "is_default", "is_active",
         ]
 
 

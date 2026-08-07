@@ -53,6 +53,12 @@ class Organization(models.Model):
     logo = models.ImageField("Логотип", upload_to="org/", blank=True, null=True)
 
     vat_payer = models.BooleanField("Плательщик НДС", default=True)
+    default_vat_rate = models.CharField(
+        "НДС по умолчанию", max_length=8,
+        choices=[("20", "20%"), ("10", "10%"), ("0", "0%"), ("none", "Без НДС")],
+        default="20",
+    )
+    allow_negative_stock = models.BooleanField("Разрешить продажи в минус (без остатка)", default=False)
     is_default = models.BooleanField("Организация по умолчанию", default=False)
     is_active = models.BooleanField("Действующая", default=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Корректировка остатка — Склад{% endblock %}
+{% block page_title %}
+  {% if object %}Корректировка остатка № {{ object.number }}
+  {% else %}Новая корректировка {% if is_cash %}остатка в кассе{% else %}остатка на счёте{% endif %}{% endif %}
+{% endblock %}
+{% block content %}
+<form id="doc-action" method="post">{% csrf_token %}</form>
+<form method="post">
+  {% csrf_token %}
+  <div class="mb-3">
+    {% url 'correction_list' as list_url %}
+    {% include "documents/_doc_toolbar.html" with post_url_name="account_correction_post" unpost_url_name="account_correction_unpost" delete_url_name="account_correction_delete" list_url=list_url save_post_label="Сохранить и провести" post_label="Провести" posted_label="Проведена" %}
+  </div>
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card mb-3" style="max-width:640px;">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4"><label class="form-label">Дата</label>{{ form.date }}</div>
+        <div class="col-md-8"><label class="form-label">Организация</label>{{ form.organization }}</div>
+        <div class="col-12"><label class="form-label">{% if is_cash %}Касса{% else %}Расчётный счёт{% endif %}</label>{{ form.account }}
+          {% if form.account.errors %}<div class="text-danger small">{{ form.account.errors.0 }}</div>{% endif %}</div>
+
+        {% if object %}
+        <div class="col-md-6">
+          <label class="form-label">Расчётный остаток был</label>
+          <div class="form-control-plaintext fw-semibold">{{ object.balance_before|floatformat:2|intcomma }} ₽</div>
+        </div>
+        {% endif %}
+        <div class="col-md-6"><label class="form-label">Фактический остаток, ₽</label>{{ form.actual_balance }}
+          {% if form.actual_balance.errors %}<div class="text-danger small">{{ form.actual_balance.errors.0 }}</div>{% endif %}
+          <div class="form-text">Введите фактическую сумму — система посчитает разницу.</div></div>
+
+        {% if object %}
+        <div class="col-12">
+          <div class="alert {% if object.amount < 0 %}alert-warning{% else %}alert-success{% endif %} py-2 mb-0">
+            Корректировка: <b>{% if object.amount > 0 %}+{% endif %}{{ object.amount|floatformat:2|intcomma }} ₽</b>
+            {% if object.is_posted %} — учтена в остатке счёта{% else %} (проведите, чтобы применить){% endif %}
+          </div>
+        </div>
+        {% endif %}
+        <div class="col-12"><label class="form-label">Комментарий</label>{{ form.comment }}</div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib import messages
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
@@ -30,10 +32,15 @@ class InvoiceListView(RoleRequiredMixin, ListView):
     model = Invoice
     template_name = "sales/invoice_list.html"
     context_object_name = "invoices"
-    paginate_by = 50
+
+    def get_paginate_by(self, qs):
+        try:
+            return int(self.request.GET.get("per_page", 50))
+        except (ValueError, TypeError):
+            return 50
 
     def get_queryset(self):
-        qs = Invoice.objects.select_related("customer", "warehouse", "organization").prefetch_related("lines", "shipments")
+        qs = Invoice.objects.select_related("customer", "warehouse", "organization").prefetch_related("lines", "shipments__lines")
         q = self.request.GET.get("q", "").strip()
         status = self.request.GET.get("status", "")
         if q:
@@ -41,6 +48,30 @@ class InvoiceListView(RoleRequiredMixin, ListView):
         if status:
             qs = qs.filter(status=status)
         return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        _zero = Decimal("0")
+        for inv in ctx["invoices"]:
+            total = sum((line.total for line in inv.lines.all()), _zero)
+            shipped = sum(
+                sum((line.total for line in s.lines.all()), _zero)
+                for s in inv.shipments.all() if s.status == "posted"
+            )
+            inv.row_total = total
+            inv.row_shipped = shipped
+            inv.row_unpaid = max(_zero, total - inv.paid_amount)
+            if total > 0:
+                inv.row_paid_pct = int(min(100, float(inv.paid_amount / total * 100)))
+                inv.row_shipped_pct = int(min(100, float(shipped / total * 100)))
+            else:
+                inv.row_paid_pct = inv.row_shipped_pct = 0
+        ctx["perpage_choices"] = [25, 50, 100]
+        try:
+            ctx["current_per_page"] = int(self.request.GET.get("per_page", 50))
+        except (ValueError, TypeError):
+            ctx["current_per_page"] = 50
+        return ctx
 
 
 class InvoiceCreateView(RoleRequiredMixin, LineDocumentMixin, CreateView):
@@ -85,6 +116,17 @@ def invoice_unpost(request, pk):
     invoice.unpost()
     messages.info(request, f"{invoice} — возвращён в черновики")
     return redirect("invoice_edit", pk=pk)
+
+
+@require_POST
+def invoice_bulk_delete(request):
+    ids = request.POST.getlist("ids")
+    if ids:
+        deleted, _ = Invoice.objects.filter(pk__in=ids).delete()
+        messages.success(request, f"Удалено счетов: {deleted}")
+    else:
+        messages.warning(request, "Не выбрано ни одного счёта")
+    return redirect("invoice_list")
 
 
 @require_POST

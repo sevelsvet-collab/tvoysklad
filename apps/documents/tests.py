@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
 
@@ -41,7 +42,7 @@ class PdfRenderTests(TestCase):
         html = "<html><body><h1>Тест кириллица</h1></body></html>"
         pdf, engine = render_pdf(html)
         self.assertTrue(pdf.startswith(b"%PDF"))
-        self.assertIn(engine, ("weasyprint", "xhtml2pdf"))
+        self.assertIn(engine, ("weasyprint", "playwright", "xhtml2pdf"))
 
 
 class PrintViewsTests(TestCase):
@@ -93,3 +94,79 @@ class PrintViewsTests(TestCase):
         for name in ("print_shipment_torg12", "print_shipment_act", "print_shipment_upd"):
             resp = self.client.get(reverse(name, args=[self.shipment.pk]))
             self.assertTrue(resp.content.startswith(b"%PDF"), f"{name} не вернул PDF")
+
+    def test_invoice_payment_qr_html(self):
+        resp = self.client.get(reverse("print_invoice_payment_qr", args=[self.invoice.pk]), {"fmt": "html"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Оплата по QR")
+        self.assertContains(resp, "data:image/png;base64,")  # QR встроен
+
+    def test_invoice_payment_without_qr_has_no_qr(self):
+        resp = self.client.get(reverse("print_invoice_payment", args=[self.invoice.pk]), {"fmt": "html"})
+        self.assertNotContains(resp, "Оплата по QR")
+
+    def test_send_email_modal_prefills_customer_email(self):
+        self.customer.email = "buyer@example.com"
+        self.customer.save(update_fields=["email"])
+        resp = self.client.get(reverse("send_invoice_email", args=[self.invoice.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "buyer@example.com")
+        self.assertContains(resp, "Счёт на оплату")
+
+    def test_send_email_posts_and_attaches_pdf(self):
+        resp = self.client.post(
+            reverse("send_invoice_email_qr", args=[self.invoice.pk]),
+            {"to_email": "a@example.com, b@example.com", "subject": "Счёт", "message": "Текст"},
+        )
+        self.assertRedirects(resp, reverse("invoice_edit", args=[self.invoice.pk]))
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, ["a@example.com", "b@example.com"])
+        self.assertEqual(len(msg.attachments), 1)
+        name, content, mime = msg.attachments[0]
+        self.assertTrue(name.endswith(".pdf"))
+        self.assertEqual(mime, "application/pdf")
+        self.assertTrue(content.startswith(b"%PDF"))
+
+    def test_send_email_invalid_address_shows_error(self):
+        resp = self.client.post(
+            reverse("send_invoice_email", args=[self.invoice.pk]),
+            {"to_email": "не-email", "subject": "Счёт", "message": "Текст"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class PaymentQrTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(
+            name='ООО "Пример"', full_name='ООО "Пример"', inn="7712345678", kpp="771201001",
+            bank_name='АО "Банк"', bik="044525225", bank_account="40702810400000000001",
+            corr_account="30101810400000000225", is_default=True,
+        )
+        self.wh = Warehouse.objects.create(name="Основной", is_default=True)
+        self.customer = Counterparty.objects.create(name="Покупатель", partner_type=Counterparty.TYPE_CUSTOMER)
+        self.invoice = Invoice.objects.create(organization=self.org, warehouse=self.wh, customer=self.customer)
+
+    def test_payload_is_valid_st00012(self):
+        from decimal import Decimal
+        from apps.documents.qr import build_payment_payload
+        payload = build_payment_payload(self.org, self.invoice, Decimal("600.00"))
+        self.assertTrue(payload.startswith("ST00012|"))
+        self.assertIn("PersonalAcc=40702810400000000001", payload)
+        self.assertIn("BIC=044525225", payload)
+        self.assertIn("Sum=60000", payload)  # рубли → копейки
+        self.assertIn(f"Purpose=Оплата по счёту № {self.invoice.number}", payload)
+
+    def test_no_bank_details_returns_none(self):
+        from decimal import Decimal
+        from apps.documents.qr import build_payment_payload
+        org = Organization.objects.create(name="Без реквизитов")
+        inv = Invoice.objects.create(organization=org, warehouse=self.wh, customer=self.customer)
+        self.assertIsNone(build_payment_payload(org, inv, Decimal("100")))
+
+    def test_qr_data_uri_generated(self):
+        from decimal import Decimal
+        from apps.documents.qr import invoice_qr_data_uri
+        uri = invoice_qr_data_uri(self.org, self.invoice, Decimal("600"))
+        self.assertTrue(uri.startswith("data:image/png;base64,"))

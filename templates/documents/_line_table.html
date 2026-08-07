@@ -1,7 +1,8 @@
 {% comment %}Табличная часть документа. Ожидает: formset, show_price, show_vat, show_discount, show_stock (по умолч. True), price_source, warehouse_field.{% endcomment %}
 <div class="doc-lines{% if not no_outer_card %} card{% endif %}"
      data-warehouse-field="{{ warehouse_field|default:'warehouse' }}"
-     data-stock-url="{% url 'api_product_stock' %}">
+     data-stock-url="{% url 'api_product_stock' %}"
+     data-default-vat="{{ default_vat_rate|default:'20' }}">
   <div class="card-body p-0">
     {{ formset.management_form }}
     {% if formset.non_form_errors %}<div class="alert alert-danger m-2">{{ formset.non_form_errors }}</div>{% endif %}

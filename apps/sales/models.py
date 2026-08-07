@@ -182,6 +182,8 @@ class Shipment(PostableMixin, models.Model):
 
         specs = []
         for line in self.lines.all():
+            if line.product.is_service:  # услуги не имеют складского учёта
+                continue
             avg = services.current_avg_cost(line.product_id, self.warehouse_id)
             if line.cost_price != avg:
                 line.cost_price = avg
@@ -191,6 +193,9 @@ class Shipment(PostableMixin, models.Model):
                 "quantity": -line.quantity, "cost": avg,
             })
         return specs
+
+    def get_allow_negative(self):
+        return self.organization.allow_negative_stock
 
     @property
     def total(self):
@@ -296,13 +301,17 @@ class CustomerReturn(PostableMixin, models.Model):
 
         specs = []
         for line in self.lines.all():
-            # Товар возвращается в запас по текущей средней (при нулевом остатке — по закупочной)
+            if line.product.is_service:
+                continue
             cost = services.current_avg_cost(line.product_id, self.warehouse_id) or line.product.purchase_price
             specs.append({
                 "product_id": line.product_id, "warehouse_id": self.warehouse_id,
                 "quantity": line.quantity, "cost": cost,
             })
         return specs
+
+    def get_allow_negative(self):
+        return self.organization.allow_negative_stock
 
     @property
     def total(self):

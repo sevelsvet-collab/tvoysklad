@@ -1,7 +1,7 @@
 from django.urls import path
 
 from . import views
-from .models import Payment
+from .models import Account, Payment
 
 urlpatterns = [
     # Счета и кассы
@@ -21,4 +21,29 @@ urlpatterns = [
 
     # Взаиморасчёты
     path("money/settlements/", views.SettlementsView.as_view(), name="settlements"),
+
+    # Корректировки
+    path("money/corrections/", views.CorrectionListView.as_view(), name="correction_list"),
+    path("money/corrections/cash/new/",
+         views.AccountCorrectionCreateView.as_view(account_kind=Account.KIND_CASH), name="cash_correction_create"),
+    path("money/corrections/bank/new/",
+         views.AccountCorrectionCreateView.as_view(account_kind=Account.KIND_BANK), name="bank_correction_create"),
+    path("money/corrections/account/<int:pk>/",
+         views.AccountCorrectionUpdateView.as_view(), name="account_correction_edit"),
+    path("money/corrections/account/<int:pk>/post/",
+         views.account_correction_post, name="account_correction_post"),
+    path("money/corrections/account/<int:pk>/unpost/",
+         views.account_correction_unpost, name="account_correction_unpost"),
+    path("money/corrections/account/<int:pk>/delete/",
+         views.account_correction_delete, name="account_correction_delete"),
+    path("money/corrections/settlement/new/",
+         views.SettlementCorrectionCreateView.as_view(), name="settlement_correction_create"),
+    path("money/corrections/settlement/<int:pk>/",
+         views.SettlementCorrectionUpdateView.as_view(), name="settlement_correction_edit"),
+    path("money/corrections/settlement/<int:pk>/post/",
+         views.settlement_correction_post, name="settlement_correction_post"),
+    path("money/corrections/settlement/<int:pk>/unpost/",
+         views.settlement_correction_unpost, name="settlement_correction_unpost"),
+    path("money/corrections/settlement/<int:pk>/delete/",
+         views.settlement_correction_delete, name="settlement_correction_delete"),
 ]

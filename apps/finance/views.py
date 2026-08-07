@@ -15,8 +15,8 @@ from apps.partners.models import Counterparty
 from apps.purchases.models import Receipt
 from apps.sales.models import Invoice
 
-from .forms import AccountForm, PaymentForm
-from .models import Account, Payment
+from .forms import AccountCorrectionForm, AccountForm, PaymentForm, SettlementCorrectionForm
+from .models import Account, AccountCorrection, Payment, SettlementCorrection
 
 MONEY_ROLES = [roles.ROLE_ADMIN, roles.ROLE_ACCOUNTANT, roles.ROLE_MANAGER]
 _ZERO = Value(Decimal("0"), output_field=DecimalField(max_digits=18, decimal_places=2))
@@ -182,14 +182,20 @@ class SettlementsView(RoleRequiredMixin, ListView):
             cust_return = _sum_customer_returns(cp)   # мы вернули покупателю (уменьшает его долг)
             supp_return = _sum_supplier_returns(cp)   # мы вернули поставщику (уменьшает наш долг)
 
+            correction = SettlementCorrection.objects.filter(
+                counterparty=cp, status=DOC_POSTED).aggregate(
+                s=Coalesce(Sum("amount", filter=Q(direction=SettlementCorrection.DIR_THEY_OWE)), _ZERO)
+                - Coalesce(Sum("amount", filter=Q(direction=SettlementCorrection.DIR_WE_OWE)), _ZERO))["s"]
+
             they_owe = sales_total - cust_return - paid_in   # долг покупателя нам
             we_owe = purch_total - supp_return - paid_out    # наш долг поставщику
-            balance = they_owe - we_owe                      # >0 — нам должны, <0 — мы должны
-            if sales_total or paid_in or purch_total or paid_out or cust_return or supp_return:
+            balance = they_owe - we_owe + correction         # >0 — нам должны, <0 — мы должны
+            if sales_total or paid_in or purch_total or paid_out or cust_return or supp_return or correction:
                 rows.append({
                     "cp": cp, "sales": sales_total, "paid_in": paid_in,
                     "purch": purch_total, "paid_out": paid_out,
                     "cust_return": cust_return, "supp_return": supp_return,
+                    "correction": correction,
                     "they_owe": they_owe, "we_owe": we_owe, "balance": balance,
                 })
         rows.sort(key=lambda r: abs(r["balance"]), reverse=True)
@@ -226,3 +232,149 @@ def _sum_supplier_returns(counterparty):
     for r in SupplierReturn.objects.filter(supplier=counterparty, status=DOC_POSTED).prefetch_related("lines"):
         total += r.total
     return total
+
+
+# ---------- Корректировки ----------
+
+class CorrectionListView(RoleRequiredMixin, ListView):
+    allowed_roles = MONEY_ROLES
+    template_name = "finance/correction_list.html"
+    context_object_name = "rows"
+
+    def get_queryset(self):
+        rows = []
+        for c in AccountCorrection.objects.select_related("account", "organization"):
+            kind_label = "Остаток в кассе" if c.account.kind == Account.KIND_CASH else "Остаток на счёте"
+            rows.append({
+                "number": c.number, "date": c.date, "type_label": kind_label,
+                "target": c.account.name, "amount": c.amount, "comment": c.comment,
+                "is_posted": c.is_posted, "url": reverse("account_correction_edit", args=[c.pk]),
+                "sort": (c.date, c.pk),
+            })
+        for c in SettlementCorrection.objects.select_related("counterparty", "organization"):
+            rows.append({
+                "number": c.number, "date": c.date, "type_label": "Взаиморасчёты",
+                "target": c.counterparty.name, "amount": c.signed_amount, "comment": c.comment,
+                "is_posted": c.is_posted, "url": reverse("settlement_correction_edit", args=[c.pk]),
+                "sort": (c.date, c.pk),
+            })
+        rows.sort(key=lambda r: r["sort"], reverse=True)
+        return rows
+
+
+class _CorrectionEditMixin(RoleRequiredMixin):
+    allowed_roles = MONEY_ROLES
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        if self.request.POST.get("action") == "save_post":
+            self.object.post()
+            messages.success(self.request, f"{self.object} — проведена")
+        else:
+            messages.success(self.request, f"{self.object} — сохранена")
+        return response
+
+
+class AccountCorrectionEditBase(_CorrectionEditMixin):
+    model = AccountCorrection
+    form_class = AccountCorrectionForm
+    template_name = "finance/account_correction_form.html"
+
+    def get_success_url(self):
+        return reverse("account_correction_edit", args=[self.object.pk])
+
+    def form_valid(self, form):
+        # Сохраняем, затем пересчитываем разницу от актуального остатка счёта.
+        self.object = form.save()
+        self.object.recalc()
+        self.object.save(update_fields=["balance_before", "amount"])
+        if self.request.POST.get("action") == "save_post":
+            self.object.post()
+            messages.success(self.request, f"{self.object} — проведена")
+        else:
+            messages.success(self.request, f"{self.object} — сохранена")
+        return redirect(self.get_success_url())
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["account_kind"] = self.account_kind
+        ctx["is_cash"] = self.account_kind == Account.KIND_CASH
+        return ctx
+
+
+class AccountCorrectionCreateView(AccountCorrectionEditBase, CreateView):
+    account_kind = None  # задаётся в urls (cash/bank)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["account_kind"] = self.account_kind
+        return kwargs
+
+
+class AccountCorrectionUpdateView(AccountCorrectionEditBase, UpdateView):
+    @property
+    def account_kind(self):
+        return self.object.account.kind if self.object else None
+
+
+class SettlementCorrectionEditBase(_CorrectionEditMixin):
+    model = SettlementCorrection
+    form_class = SettlementCorrectionForm
+    template_name = "finance/settlement_correction_form.html"
+
+    def get_success_url(self):
+        return reverse("settlement_correction_edit", args=[self.object.pk])
+
+
+class SettlementCorrectionCreateView(SettlementCorrectionEditBase, CreateView):
+    pass
+
+
+class SettlementCorrectionUpdateView(SettlementCorrectionEditBase, UpdateView):
+    pass
+
+
+@require_POST
+def account_correction_post(request, pk):
+    obj = get_object_or_404(AccountCorrection, pk=pk)
+    obj.post()
+    messages.success(request, f"{obj} — проведена")
+    return redirect("account_correction_edit", pk=pk)
+
+
+@require_POST
+def account_correction_unpost(request, pk):
+    obj = get_object_or_404(AccountCorrection, pk=pk)
+    obj.unpost()
+    messages.info(request, f"{obj} — снята с проведения")
+    return redirect("account_correction_edit", pk=pk)
+
+
+@require_POST
+def account_correction_delete(request, pk):
+    get_object_or_404(AccountCorrection, pk=pk).delete()
+    messages.info(request, "Корректировка удалена")
+    return redirect("correction_list")
+
+
+@require_POST
+def settlement_correction_post(request, pk):
+    obj = get_object_or_404(SettlementCorrection, pk=pk)
+    obj.post()
+    messages.success(request, f"{obj} — проведена")
+    return redirect("settlement_correction_edit", pk=pk)
+
+
+@require_POST
+def settlement_correction_unpost(request, pk):
+    obj = get_object_or_404(SettlementCorrection, pk=pk)
+    obj.unpost()
+    messages.info(request, f"{obj} — снята с проведения")
+    return redirect("settlement_correction_edit", pk=pk)
+
+
+@require_POST
+def settlement_correction_delete(request, pk):
+    get_object_or_404(SettlementCorrection, pk=pk).delete()
+    messages.info(request, "Корректировка удалена")
+    return redirect("correction_list")

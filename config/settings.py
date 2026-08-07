@@ -16,6 +16,20 @@ ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 # Домены для проверки CSRF при HTTPS, напр. https://sklad.example.com
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
+# Почта. Если EMAIL_HOST не задан — письма печатаются в консоль (для разработки
+# на Windows без SMTP). На бою в .env указываются реквизиты почтового ящика.
+EMAIL_HOST = env("EMAIL_HOST", default="")
+if EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+    EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+    EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+    EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+    EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="sklad@example.com")
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

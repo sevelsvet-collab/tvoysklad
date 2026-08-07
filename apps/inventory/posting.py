@@ -15,6 +15,11 @@ class PostableMixin:
         """Возвращает список движений: dict(product_id, warehouse_id, quantity, cost)."""
         raise NotImplementedError
 
+    def get_allow_negative(self):
+        """Разрешить продажи в минус? Переопределяется в моделях с полем organization."""
+        from django.conf import settings
+        return getattr(settings, "ALLOW_NEGATIVE_STOCK", False)
+
     @property
     def is_posted(self):
         return self.status == DOC_POSTED
@@ -25,6 +30,8 @@ class PostableMixin:
 
         services.clear_movements(self.DOC_TYPE, self.pk)  # чистый лист (идемпотентно)
         specs = self.build_specs()
+        if allow_negative is None:
+            allow_negative = self.get_allow_negative()
         services.validate_stock(specs, allow_negative)
         services.create_movements(self.DOC_TYPE, self.pk, self.number, self.date, specs)
         self.status = DOC_POSTED

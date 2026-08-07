@@ -10,7 +10,7 @@ from apps.core.models import Organization, Warehouse
 from apps.partners.models import Counterparty
 from apps.sales.models import Invoice
 
-from .models import Account, Payment
+from .models import Account, AccountCorrection, Payment, SettlementCorrection
 
 User = get_user_model()
 
@@ -149,3 +149,75 @@ class SettlementsTests(TestCase):
         self.assertEqual(row["sales"], Decimal("1000"))
         self.assertEqual(row["paid_in"], Decimal("400"))
         self.assertEqual(row["balance"], Decimal("600"))  # клиент должен нам 600
+
+
+class AccountCorrectionTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Орг", is_default=True)
+        self.account = Account.objects.create(
+            organization=self.org, name="Касса", kind=Account.KIND_CASH,
+            opening_balance=0, is_default=True,
+        )
+
+    def _correction(self, actual):
+        c = AccountCorrection(organization=self.org, account=self.account, actual_balance=Decimal(actual))
+        c.save()
+        c.recalc()
+        c.save(update_fields=["balance_before", "amount"])
+        return c
+
+    def test_correction_sets_balance_to_actual(self):
+        c = self._correction("5000")
+        self.assertEqual(c.amount, Decimal("5000.00"))
+        self.assertEqual(self.account.balance, Decimal("0.00"))  # черновик не влияет
+        c.post()
+        self.assertEqual(self.account.balance, Decimal("5000.00"))
+        c.unpost()
+        self.assertEqual(self.account.balance, Decimal("0.00"))
+
+    def test_second_correction_uses_current_balance(self):
+        self._correction("5000").post()
+        c2 = self._correction("4200")  # было 5000
+        self.assertEqual(c2.balance_before, Decimal("5000.00"))
+        self.assertEqual(c2.amount, Decimal("-800.00"))
+        c2.post()
+        self.assertEqual(self.account.balance, Decimal("4200.00"))
+
+
+class SettlementCorrectionTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Орг", is_default=True)
+        self.wh = Warehouse.objects.create(name="Склад", is_default=True)
+        self.account = Account.objects.create(organization=self.org, name="Р/с", is_default=True)
+        self.customer = Counterparty.objects.create(name="Клиент", partner_type=Counterparty.TYPE_CUSTOMER)
+        self.user = User.objects.create_user("acc", password="pass12345")
+        self.user.groups.add(Group.objects.get(name=roles.ROLE_ACCOUNTANT))
+        self.client.login(username="acc", password="pass12345")
+
+    def test_posted_correction_shifts_balance(self):
+        sc = SettlementCorrection.objects.create(
+            organization=self.org, counterparty=self.customer,
+            direction=SettlementCorrection.DIR_THEY_OWE, amount=Decimal("1500"),
+        )
+        # Черновик — не влияет
+        resp = self.client.get(reverse("settlements"))
+        rows = [r for r in resp.context["rows"] if r["cp"] == self.customer]
+        self.assertEqual(rows, [])
+        sc.post()
+        resp = self.client.get(reverse("settlements"))
+        row = next(r for r in resp.context["rows"] if r["cp"] == self.customer)
+        self.assertEqual(row["correction"], Decimal("1500"))
+        self.assertEqual(row["balance"], Decimal("1500"))
+
+    def test_we_owe_direction_is_negative(self):
+        sc = SettlementCorrection.objects.create(
+            organization=self.org, counterparty=self.customer,
+            direction=SettlementCorrection.DIR_WE_OWE, amount=Decimal("700"),
+        )
+        self.assertEqual(sc.signed_amount, Decimal("-700"))
+
+    def test_correction_list_view(self):
+        AccountCorrection.objects.create(organization=self.org, account=self.account, actual_balance=100, amount=100)
+        resp = self.client.get(reverse("correction_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context["rows"]), 1)
