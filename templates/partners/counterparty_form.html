@@ -5,6 +5,23 @@
 <form method="post">
   {% csrf_token %}
   {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  {% if duplicates %}
+  <div class="alert alert-warning">
+    <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Возможно, такой контрагент уже есть в базе:</div>
+    <ul class="mb-2">
+      {% for d in duplicates %}
+      <li>
+        <a href="{% url 'counterparty_edit' d.pk %}" target="_blank">{{ d.name }}</a>
+        {% if d.inn %} — ИНН {{ d.inn }}{% endif %}{% if d.phone %} — тел. {{ d.phone }}{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <button type="submit" name="confirm_duplicate" value="1" class="btn btn-warning btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>Всё равно создать нового
+    </button>
+    <a href="{% url 'counterparty_list' %}" class="btn btn-outline-secondary btn-sm">Отмена</a>
+  </div>
+  {% endif %}
   <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-main" type="button">Реквизиты</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-contacts" type="button">Контактные лица</button></li>
@@ -17,42 +34,37 @@
         <div class="col-lg-6">
           <div class="card">
             <div class="card-body">
-              {% for field in form %}
-                {% if field.name == "inn" %}
-                  <div class="mb-3">
-                    <label class="form-label">{{ field.label }}</label>
-                    <div class="input-group">
-                      {{ field }}
-                      <button type="button" class="btn btn-outline-primary" id="btn-inn-lookup">
-                        <i class="bi bi-magic me-1"></i>Заполнить по ИНН
-                      </button>
-                    </div>
-                    <div class="text-danger small d-none mt-1" id="inn-lookup-error"></div>
-                    {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
-                  </div>
-                {% elif field.name in "name,full_name,kind,partner_type,kpp,ogrn,okpo" %}
-                  <div class="mb-3">
-                    <label class="form-label">{{ field.label }}</label>
-                    {{ field }}
-                    {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
-                  </div>
-                {% endif %}
-              {% endfor %}
+              {% include "partials/_field.html" with field=form.name %}
+              {% include "partials/_field.html" with field=form.full_name %}
+              {% include "partials/_field.html" with field=form.kind %}
+              {% include "partials/_field.html" with field=form.partner_type %}
+              <div class="mb-3">
+                <label class="form-label">{{ form.inn.label }}</label>
+                <div class="input-group">
+                  {{ form.inn }}
+                  <button type="button" class="btn btn-outline-primary" id="btn-inn-lookup">
+                    <i class="bi bi-magic me-1"></i>Заполнить по ИНН
+                  </button>
+                </div>
+                <div class="text-danger small d-none mt-1" id="inn-lookup-error"></div>
+                {% if form.inn.errors %}<div class="text-danger small">{{ form.inn.errors.0 }}</div>{% endif %}
+              </div>
+              {% include "partials/_field.html" with field=form.kpp %}
+              {% include "partials/_field.html" with field=form.ogrn %}
+              {% include "partials/_field.html" with field=form.okpo %}
             </div>
           </div>
         </div>
         <div class="col-lg-6">
           <div class="card">
             <div class="card-body">
-              {% for field in form %}
-                {% if field.name in "legal_address,actual_address,phone,email,contact_person,director_name,comment" %}
-                  <div class="mb-3">
-                    <label class="form-label">{{ field.label }}</label>
-                    {{ field }}
-                    {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
-                  </div>
-                {% endif %}
-              {% endfor %}
+              {% include "partials/_field.html" with field=form.legal_address %}
+              {% include "partials/_field.html" with field=form.actual_address %}
+              {% include "partials/_field.html" with field=form.phone %}
+              {% include "partials/_field.html" with field=form.email %}
+              {% include "partials/_field.html" with field=form.contact_person %}
+              {% include "partials/_field.html" with field=form.director_name %}
+              {% include "partials/_field.html" with field=form.comment %}
               <div class="form-check">
                 {{ form.is_active }}
                 <label class="form-check-label">{{ form.is_active.label }}</label>

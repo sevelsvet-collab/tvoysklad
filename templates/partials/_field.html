@@ -1,0 +1,6 @@
+{% comment %}Одно поле формы: подпись, виджет, ошибки. Ожидает field.{% endcomment %}
+<div class="mb-3">
+  <label class="form-label">{{ field.label }}</label>
+  {{ field }}
+  {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+</div>

@@ -61,6 +61,7 @@ class CounterpartyEditBase(RoleRequiredMixin):
         return ctx
 
     def form_valid(self, form):
+        is_create = self.object is None
         bank_formset = BankAccountFormSet(self.request.POST, instance=self.object, prefix="banks")
         contract_formset = ContractFormSet(self.request.POST, instance=self.object, prefix="contracts")
         contact_formset = ContactPersonFormSet(self.request.POST, instance=self.object, prefix="contacts")
@@ -69,6 +70,16 @@ class CounterpartyEditBase(RoleRequiredMixin):
                 form=form, bank_formset=bank_formset,
                 contract_formset=contract_formset, contact_formset=contact_formset,
             ))
+        # При создании — проверка на дубликаты (по ИНН/телефону/названию),
+        # пока пользователь не подтвердил «Всё равно создать».
+        if is_create and self.request.POST.get("confirm_duplicate") != "1":
+            duplicates = _find_duplicates(form)
+            if duplicates:
+                return self.render_to_response(self.get_context_data(
+                    form=form, bank_formset=bank_formset,
+                    contract_formset=contract_formset, contact_formset=contact_formset,
+                    duplicates=duplicates,
+                ))
         self.object = form.save()
         for fs in (bank_formset, contract_formset, contact_formset):
             fs.instance = self.object
@@ -76,6 +87,23 @@ class CounterpartyEditBase(RoleRequiredMixin):
         messages.success(self.request, "Контрагент сохранён")
         # Остаёмся на карточке (не выбрасываем в список) — удобно дозаполнять
         return redirect("counterparty_edit", pk=self.object.pk)
+
+
+def _find_duplicates(form):
+    """Ищет уже существующих контрагентов с тем же ИНН, телефоном или названием."""
+    inn = (form.cleaned_data.get("inn") or "").strip()
+    phone = (form.cleaned_data.get("phone") or "").strip()
+    name = (form.cleaned_data.get("name") or "").strip()
+    query = Q()
+    if inn:
+        query |= Q(inn=inn)
+    if phone:
+        query |= Q(phone=phone)
+    if name:
+        query |= Q(name__iexact=name)
+    if not query:
+        return Counterparty.objects.none()
+    return list(Counterparty.objects.filter(query)[:10])
 
 
 class CounterpartyCreateView(CounterpartyEditBase, CreateView):

@@ -108,6 +108,39 @@ class CounterpartyViewTests(TestCase):
         self.assertEqual(cp.contacts.count(), 1)
         self.assertEqual(cp.contacts.first().position, "Бухгалтер")
 
+    def _base_data(self, name, **extra):
+        data = {
+            "name": name, "kind": "legal", "partner_type": "customer",
+            "full_name": "", "inn": "", "kpp": "", "ogrn": "",
+            "legal_address": "", "actual_address": "", "phone": "", "email": "",
+            "contact_person": "", "director_name": "", "comment": "", "is_active": "on",
+            "banks-TOTAL_FORMS": "0", "banks-INITIAL_FORMS": "0",
+            "contracts-TOTAL_FORMS": "0", "contracts-INITIAL_FORMS": "0",
+            "contacts-TOTAL_FORMS": "0", "contacts-INITIAL_FORMS": "0",
+        }
+        data.update(extra)
+        return data
+
+    def test_duplicate_warning_on_matching_inn(self):
+        Counterparty.objects.create(name="Ромашка", inn="7712345678", partner_type="customer")
+        # попытка создать другого с тем же ИНН — предупреждение, не создаётся
+        resp = self.client.post(reverse("counterparty_create"), self._base_data("Ромашка-2", inn="7712345678"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "уже есть в базе")
+        self.assertFalse(Counterparty.objects.filter(name="Ромашка-2").exists())
+        # подтверждение «всё равно создать» — создаётся
+        resp2 = self.client.post(
+            reverse("counterparty_create"),
+            self._base_data("Ромашка-2", inn="7712345678", confirm_duplicate="1"),
+        )
+        self.assertEqual(resp2.status_code, 302)
+        self.assertTrue(Counterparty.objects.filter(name="Ромашка-2").exists())
+
+    def test_no_duplicate_warning_for_unique(self):
+        resp = self.client.post(reverse("counterparty_create"), self._base_data("Уникальный Клиент"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(Counterparty.objects.filter(name="Уникальный Клиент").exists())
+
 
 class CounterpartySearchApiTests(TestCase):
     """Живой поиск контрагентов в документах."""
