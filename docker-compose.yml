@@ -1,14 +1,11 @@
 services:
   db:
     image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-sklad}
-      POSTGRES_USER: ${POSTGRES_USER:-sklad}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sklad}
+    env_file: .env          # POSTGRES_DB/USER/PASSWORD берутся напрямую из .env
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sklad}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 5s
       timeout: 5s
       retries: 10
