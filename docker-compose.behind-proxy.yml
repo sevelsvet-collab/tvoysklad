@@ -1,0 +1,50 @@
+# Запуск ЗА уже работающим на сервере Caddy (он обслуживает несколько доменов).
+# Наш проект = приложение (web) + база (db), без собственного веб-сервера и без
+# захвата портов 80/443. Внешний Caddy проксирует наш домен к контейнеру sklad-web.
+#
+# Запуск:  docker compose -f docker-compose.behind-proxy.yml up -d --build
+#
+# Требуется внешняя сеть внешнего Caddy (имя проверить: docker network ls).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sklad}
+      POSTGRES_USER: ${POSTGRES_USER:-sklad}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sklad}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sklad}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - internal
+
+  web:
+    build: .
+    container_name: sklad-web          # по этому имени внешний Caddy находит приложение
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - staticfiles:/app/staticfiles
+      - media:/app/media
+    networks:
+      - internal      # связь с базой
+      - caddy         # видимость для внешнего Caddy
+    restart: unless-stopped
+
+networks:
+  internal:           # приватная сеть проекта (приложение ↔ база)
+  caddy:              # общая сеть с внешним Caddy
+    external: true
+    name: remnashop-web_default
+
+volumes:
+  pgdata:
+  staticfiles:
+  media:

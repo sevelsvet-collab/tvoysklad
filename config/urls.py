@@ -21,3 +21,12 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    # В бою media отдаёт само приложение (за обратным прокси). Объём небольшой —
+    # это подписи, печати и логотипы организаций.
+    from django.urls import re_path
+    from django.views.static import serve as _serve
+
+    urlpatterns += [
+        re_path(r"^media/(?P<path>.*)$", _serve, {"document_root": settings.MEDIA_ROOT}),
+    ]
