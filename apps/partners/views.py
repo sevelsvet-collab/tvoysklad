@@ -8,6 +8,7 @@ from django.views.generic import CreateView, FormView, ListView, UpdateView
 
 from apps.core import roles
 from apps.core.forms import ImportForm
+from apps.core.pagination import PageSizeMixin
 from apps.core.permissions import RoleRequiredMixin
 
 from .forms import BankAccountFormSet, ContractFormSet, CounterpartyForm
@@ -18,11 +19,10 @@ from .services import InnLookupError, lookup_inn
 EDIT_ROLES = [roles.ROLE_ADMIN, roles.ROLE_MANAGER, roles.ROLE_ACCOUNTANT]
 
 
-class CounterpartyListView(RoleRequiredMixin, ListView):
+class CounterpartyListView(PageSizeMixin, RoleRequiredMixin, ListView):
     model = Counterparty
     template_name = "partners/counterparty_list.html"
     context_object_name = "counterparties"
-    paginate_by = 50
 
     def get_queryset(self):
         qs = Counterparty.objects.all()
