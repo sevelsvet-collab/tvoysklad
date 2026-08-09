@@ -54,7 +54,10 @@ def _parse_kind(raw):
 
 
 def import_counterparties(file):
-    wb = load_workbook(file, read_only=True, data_only=True)
+    # НЕ read_only: экспорт МойСклада объявляет неверную размерность листа,
+    # и в экономном режиме openpyxl обрезает строки до одной ячейки (теряются
+    # все колонки, кроме первой). Обычный режим читает реальные ячейки.
+    wb = load_workbook(file, data_only=True)
 
     header_row, col = None, None
     ws = None
