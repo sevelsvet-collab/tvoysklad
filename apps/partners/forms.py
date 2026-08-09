@@ -3,7 +3,7 @@ from django.forms import inlineformset_factory
 
 from apps.core.forms import BootstrapFormMixin
 
-from .models import BankAccount, Contract, Counterparty
+from .models import BankAccount, ContactPerson, Contract, Counterparty
 
 
 class CounterpartyForm(BootstrapFormMixin, forms.ModelForm):
@@ -32,9 +32,18 @@ class ContractForm(BootstrapFormMixin, forms.ModelForm):
         widgets = {"date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")}
 
 
+class ContactPersonForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = ContactPerson
+        fields = ["full_name", "position", "phone", "email", "comment"]
+
+
 BankAccountFormSet = inlineformset_factory(
     Counterparty, BankAccount, form=BankAccountForm, extra=1, can_delete=True,
 )
 ContractFormSet = inlineformset_factory(
     Counterparty, Contract, form=ContractForm, extra=1, can_delete=True,
+)
+ContactPersonFormSet = inlineformset_factory(
+    Counterparty, ContactPerson, form=ContactPersonForm, extra=1, can_delete=True,
 )

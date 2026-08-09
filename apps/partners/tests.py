@@ -90,12 +90,23 @@ class CounterpartyViewTests(TestCase):
             "banks-0-account": "40702810000000000001", "banks-0-corr_account": "",
             "contracts-TOTAL_FORMS": "1", "contracts-INITIAL_FORMS": "0",
             "contracts-0-organization": "", "contracts-0-number": "", "contracts-0-date": "", "contracts-0-name": "",
+            "contacts-TOTAL_FORMS": "1", "contacts-INITIAL_FORMS": "0",
+            "contacts-0-full_name": "", "contacts-0-position": "", "contacts-0-phone": "",
+            "contacts-0-email": "", "contacts-0-comment": "",
         }
+        data["contacts-0-full_name"] = "Иванов И.И."
+        data["contacts-0-position"] = "Бухгалтер"
+        data["contacts-0-phone"] = "+79990000000"
         resp = self.client.post(reverse("counterparty_create"), data)
         self.assertEqual(resp.status_code, 302)
         cp = Counterparty.objects.get(name="Новый Клиент")
         self.assertEqual(cp.bank_accounts.count(), 1)
         self.assertEqual(cp.bank_accounts.first().bank_name, "Тест-Банк")
+        # остаёмся на карточке контрагента, а не в списке
+        self.assertEqual(resp.url, reverse("counterparty_edit", args=[cp.pk]))
+        # контактное лицо сохранилось
+        self.assertEqual(cp.contacts.count(), 1)
+        self.assertEqual(cp.contacts.first().position, "Бухгалтер")
 
 
 class CounterpartySearchApiTests(TestCase):

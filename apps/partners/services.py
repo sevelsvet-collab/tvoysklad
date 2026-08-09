@@ -14,10 +14,61 @@ from django.conf import settings
 from .models import Counterparty
 
 DADATA_URL = "https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party"
+DADATA_BANK_URL = "https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/bank"
 
 
 class InnLookupError(Exception):
     pass
+
+
+class BankLookupError(Exception):
+    pass
+
+
+def _dadata_request(url, query):
+    """Общий POST-запрос к DaData findById. Возвращает список suggestions."""
+    api_key = getattr(settings, "DADATA_API_KEY", "")
+    if not api_key:
+        raise BankLookupError(
+            "Не настроен ключ DaData. Добавьте в .env строку DADATA_API_KEY=ваш_ключ "
+            "и перезапустите сервер."
+        )
+    request = urllib.request.Request(
+        url,
+        data=json.dumps({"query": query}).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Token {api_key}",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=10) as resp:
+        return (json.load(resp).get("suggestions") or [])
+
+
+def lookup_bank(bik: str) -> dict:
+    """Возвращает наименование банка и корр. счёт по БИК или бросает BankLookupError."""
+    bik = (bik or "").strip()
+    if not bik.isdigit() or len(bik) != 9:
+        raise BankLookupError("БИК должен состоять из 9 цифр")
+    try:
+        suggestions = _dadata_request(DADATA_BANK_URL, bik)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            raise BankLookupError("DaData отклонил ключ API — проверьте DADATA_API_KEY в .env") from exc
+        raise BankLookupError(f"Ошибка сервиса DaData: HTTP {exc.code}") from exc
+    except urllib.error.URLError as exc:
+        raise BankLookupError(f"Нет связи с сервисом DaData: {exc.reason}") from exc
+
+    if not suggestions:
+        raise BankLookupError(f"Банк с БИК {bik} не найден")
+    data = suggestions[0].get("data") or {}
+    name = data.get("name") or {}
+    return {
+        "bank_name": name.get("payment") or name.get("short") or suggestions[0].get("value") or "",
+        "corr_account": data.get("correspondent_account") or "",
+        "bik": data.get("bic") or bik,
+    }
 
 
 def lookup_inn(inn: str) -> dict:

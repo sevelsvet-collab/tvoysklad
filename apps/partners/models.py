@@ -98,3 +98,27 @@ class Contract(models.Model):
         if self.date:
             base += f" от {self.date:%d.%m.%Y}"
         return base
+
+
+class ContactPerson(models.Model):
+    """Контактное лицо контрагента (бухгалтер, кладовщик и т.п.)."""
+
+    counterparty = models.ForeignKey(
+        Counterparty, on_delete=models.CASCADE, related_name="contacts", verbose_name="Контрагент",
+    )
+    full_name = models.CharField("ФИО", max_length=255)
+    position = models.CharField("Должность", max_length=128, blank=True)
+    phone = models.CharField("Телефон", max_length=64, blank=True)
+    email = models.EmailField("E-mail", blank=True)
+    comment = models.CharField("Комментарий", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Контактное лицо"
+        verbose_name_plural = "Контактные лица"
+        ordering = ["id"]
+
+    def __str__(self):
+        parts = [self.full_name]
+        if self.position:
+            parts.append(f"({self.position})")
+        return " ".join(parts)

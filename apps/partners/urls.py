@@ -10,4 +10,5 @@ urlpatterns = [
     path("counterparties/<int:pk>/", views.CounterpartyUpdateView.as_view(), name="counterparty_edit"),
     path("counterparties/import/", views.PartnersImportView.as_view(), name="partners_import"),
     path("counterparties/inn-lookup/", views.inn_lookup, name="inn_lookup"),
+    path("counterparties/bank-lookup/", views.bank_lookup, name="bank_lookup"),
 ]

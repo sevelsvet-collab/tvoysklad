@@ -11,10 +11,10 @@ from apps.core.forms import ImportForm
 from apps.core.pagination import PageSizeMixin
 from apps.core.permissions import RoleRequiredMixin
 
-from .forms import BankAccountFormSet, ContractFormSet, CounterpartyForm
+from .forms import BankAccountFormSet, ContactPersonFormSet, ContractFormSet, CounterpartyForm
 from .importers import import_counterparties
 from .models import Counterparty
-from .services import InnLookupError, lookup_inn
+from .services import BankLookupError, InnLookupError, lookup_bank, lookup_inn
 
 EDIT_ROLES = [roles.ROLE_ADMIN, roles.ROLE_MANAGER, roles.ROLE_ACCOUNTANT]
 
@@ -56,22 +56,26 @@ class CounterpartyEditBase(RoleRequiredMixin):
             ctx["bank_formset"] = BankAccountFormSet(instance=self.object, prefix="banks")
         if "contract_formset" not in ctx:
             ctx["contract_formset"] = ContractFormSet(instance=self.object, prefix="contracts")
+        if "contact_formset" not in ctx:
+            ctx["contact_formset"] = ContactPersonFormSet(instance=self.object, prefix="contacts")
         return ctx
 
     def form_valid(self, form):
         bank_formset = BankAccountFormSet(self.request.POST, instance=self.object, prefix="banks")
         contract_formset = ContractFormSet(self.request.POST, instance=self.object, prefix="contracts")
-        if not (bank_formset.is_valid() and contract_formset.is_valid()):
+        contact_formset = ContactPersonFormSet(self.request.POST, instance=self.object, prefix="contacts")
+        if not (bank_formset.is_valid() and contract_formset.is_valid() and contact_formset.is_valid()):
             return self.render_to_response(self.get_context_data(
-                form=form, bank_formset=bank_formset, contract_formset=contract_formset,
+                form=form, bank_formset=bank_formset,
+                contract_formset=contract_formset, contact_formset=contact_formset,
             ))
         self.object = form.save()
-        bank_formset.instance = self.object
-        contract_formset.instance = self.object
-        bank_formset.save()
-        contract_formset.save()
+        for fs in (bank_formset, contract_formset, contact_formset):
+            fs.instance = self.object
+            fs.save()
         messages.success(self.request, "Контрагент сохранён")
-        return redirect(self.success_url)
+        # Остаёмся на карточке (не выбрасываем в список) — удобно дозаполнять
+        return redirect("counterparty_edit", pk=self.object.pk)
 
 
 class CounterpartyCreateView(CounterpartyEditBase, CreateView):
@@ -89,6 +93,16 @@ def inn_lookup(request):
         data = lookup_inn(request.GET.get("inn", ""))
         return JsonResponse({"ok": True, "data": data})
     except InnLookupError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)})
+
+
+@login_required
+def bank_lookup(request):
+    """Подтягивает наименование банка и корр. счёт по БИК (DaData)."""
+    try:
+        data = lookup_bank(request.GET.get("bik", ""))
+        return JsonResponse({"ok": True, "data": data})
+    except BankLookupError as exc:
         return JsonResponse({"ok": False, "error": str(exc)})
 
 
