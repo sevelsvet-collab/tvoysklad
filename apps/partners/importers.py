@@ -9,6 +9,7 @@
 файл с пустыми строками сверху тоже импортируется.
 Существующие контрагенты обновляются по совпадению ИНН (без ИНН — по наименованию).
 """
+from django.db import transaction
 from openpyxl import load_workbook
 
 from .models import BankAccount, Counterparty
@@ -33,6 +34,21 @@ def _clean(value):
     if value is None:
         return ""
     return str(value).strip()
+
+
+def _digits_only(value):
+    """Для счетов и БИК: убирает пробелы и прочие разделители — остаются цифры."""
+    return "".join(ch for ch in _clean(value) if ch.isdigit())
+
+
+def _truncate_fields(obj):
+    """Обрезает строковые поля до max_length модели (PostgreSQL иначе падает)."""
+    for f in obj._meta.concrete_fields:
+        max_length = getattr(f, "max_length", None)
+        if max_length:
+            value = getattr(obj, f.attname, None)
+            if isinstance(value, str) and len(value) > max_length:
+                setattr(obj, f.attname, value[:max_length])
 
 
 def _find_header(ws, max_rows=10):
@@ -90,69 +106,80 @@ def import_counterparties(file):
         if not name:
             continue
         try:
-            inn = cell(row, "инн")
-            obj = None
-            if inn:
-                obj = Counterparty.objects.filter(inn=inn).first()
-            if obj is None:
-                obj = Counterparty.objects.filter(name=name, inn="").first()
-            was_created = obj is None
-            if was_created:
-                obj = Counterparty(name=name)
-
-            obj.name = name
-            obj.inn = inn or obj.inn
-            # заполняем только присутствующие в файле колонки — не затираем остальное
-            field_map = [
-                ("full_name", ("полное наименование",)),
-                ("kpp", ("кпп",)),
-                ("okpo", ("окпо",)),
-                ("phone", ("телефон",)),
-                ("email", ("e-mail", "email", "электронный адрес")),
-                ("legal_address", ("юридический адрес", "адрес")),
-                ("actual_address", ("фактический адрес",)),
-                ("contact_person", ("контактное лицо",)),
-                ("comment", ("комментарий",)),
-            ]
-            for field, names in field_map:
-                value = cell(row, *names)
-                if value:
-                    setattr(obj, field, value)
-
-            ogrn = cell(row, "огрн") or cell(row, "огрнип")
-            if ogrn:
-                obj.ogrn = ogrn
-
-            kind = _parse_kind(cell(row, "тип контрагента", "форма"))
-            if kind:
-                obj.kind = kind
-
-            ptype = TYPE_MAP.get(cell(row, "тип").lower())
-            if ptype:
-                obj.partner_type = ptype
-
-            archived = cell(row, "архивный").lower()
-            if archived in ("да", "yes", "true", "1"):
-                obj.is_active = False
-            elif archived in ("нет", "no", "false", "0"):
-                obj.is_active = True
-
-            obj.save()
-
-            account = cell(row, "р/с", "расчётный счёт", "расчетный счет")
-            if account:
-                BankAccount.objects.update_or_create(
-                    counterparty=obj, account=account,
-                    defaults={
-                        "bank_name": cell(row, "банк"),
-                        "bik": cell(row, "бик"),
-                        "corr_account": cell(row, "к/с", "корр. счёт", "корр. счет"),
-                    },
-                )
-
+            # Каждая строка — в своей транзакции: ошибка одной не ломает остальные
+            # (на PostgreSQL сбойная операция иначе рушит всю транзакцию запроса).
+            with transaction.atomic():
+                was_created = _import_row(cell, row, name)
             created += was_created
             updated += not was_created
-        except Exception as exc:  # noqa: BLE001 — одна плохая строка не должна ронять импорт
+        except Exception as exc:  # noqa: BLE001 — одна плохая строка не роняет импорт
             errors.append(f"Строка {n}: {exc}")
 
     return created, updated, errors
+
+
+def _import_row(cell, row, name):
+    """Создаёт/обновляет одного контрагента из строки. Возвращает was_created."""
+    inn = cell(row, "инн")
+    obj = None
+    if inn:
+        obj = Counterparty.objects.filter(inn=inn).first()
+    if obj is None:
+        obj = Counterparty.objects.filter(name=name, inn="").first()
+    was_created = obj is None
+    if was_created:
+        obj = Counterparty(name=name)
+
+    obj.name = name
+    obj.inn = inn or obj.inn
+    # заполняем только присутствующие в файле колонки — не затираем остальное
+    field_map = [
+        ("full_name", ("полное наименование",)),
+        ("kpp", ("кпп",)),
+        ("okpo", ("окпо",)),
+        ("phone", ("телефон",)),
+        ("email", ("e-mail", "email", "электронный адрес")),
+        ("legal_address", ("юридический адрес", "адрес")),
+        ("actual_address", ("фактический адрес",)),
+        ("contact_person", ("контактное лицо",)),
+        ("comment", ("комментарий",)),
+    ]
+    for field, names in field_map:
+        value = cell(row, *names)
+        if value:
+            setattr(obj, field, value)
+
+    ogrn = cell(row, "огрн") or cell(row, "огрнип")
+    if ogrn:
+        obj.ogrn = ogrn
+
+    kind = _parse_kind(cell(row, "тип контрагента", "форма"))
+    if kind:
+        obj.kind = kind
+
+    ptype = TYPE_MAP.get(cell(row, "тип").lower())
+    if ptype:
+        obj.partner_type = ptype
+
+    archived = cell(row, "архивный").lower()
+    if archived in ("да", "yes", "true", "1"):
+        obj.is_active = False
+    elif archived in ("нет", "no", "false", "0"):
+        obj.is_active = True
+
+    _truncate_fields(obj)
+    obj.save()
+
+    # Банковский счёт: номера и БИК чистим от пробелов, длинное — обрезаем
+    account = _digits_only(cell(row, "р/с", "расчётный счёт", "расчетный счет"))
+    if account:
+        BankAccount.objects.update_or_create(
+            counterparty=obj, account=account[:20],
+            defaults={
+                "bank_name": cell(row, "банк")[:255],
+                "bik": _digits_only(cell(row, "бик"))[:9],
+                "corr_account": _digits_only(cell(row, "к/с", "корр. счёт", "корр. счет"))[:20],
+            },
+        )
+
+    return was_created
