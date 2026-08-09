@@ -1,7 +1,8 @@
 services:
   db:
     image: postgres:16-alpine
-    env_file: .env          # POSTGRES_DB/USER/PASSWORD берутся напрямую из .env
+    container_name: sklad-db   # уникальное имя, чтобы не путать с чужими "db" в общих сетях
+    env_file: .env             # POSTGRES_DB/USER/PASSWORD берутся напрямую из .env
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
