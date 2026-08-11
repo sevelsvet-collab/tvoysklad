@@ -66,6 +66,7 @@
 {% endif %}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{% static 'js/autocomplete.js' %}{% if asset_version %}?v={{ asset_version }}{% endif %}" defer></script>
+<script src="{% static 'js/dirty-form.js' %}{% if asset_version %}?v={{ asset_version }}{% endif %}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
