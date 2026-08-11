@@ -32,10 +32,15 @@
     <div class="card-body">
       <div class="row g-3">
         <div class="col-md-3"><label class="form-label">Дата</label>{{ form.date }}</div>
-        <div class="col-md-5"><label class="form-label">Организация</label>{{ form.organization }}</div>
+        <div class="col-md-5"><label class="form-label">Организация</label>
+          <div class="input-group">
+            {{ form.organization }}
+            <button type="button" class="btn btn-outline-secondary entity-edit" data-edit-base="{% url 'organization_edit' 0 %}" data-target="{{ form.organization.id_for_label }}" title="Открыть карточку организации"><i class="bi bi-pencil"></i></button>
+          </div>
+        </div>
         <div class="col-md-4"><label class="form-label">Со склада</label>{{ form.warehouse }}</div>
         <div class="col-md-6"><label class="form-label">Покупатель</label>
-          {% include "documents/_ac_field.html" with field=form.customer selected=form.instance.customer search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" ac_params='{"type": "customer"}' %}
+          {% include "documents/_ac_field.html" with field=form.customer selected=form.instance.customer search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" ac_params='{"type": "customer"}' edit_url_name="counterparty_edit" %}
         </div>
         <div class="col-12"><label class="form-label">Комментарий</label>{{ form.comment }}</div>
       </div>

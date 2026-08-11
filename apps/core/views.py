@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views.generic import CreateView, ListView, TemplateView, UpdateView
 
 from . import roles
@@ -72,6 +72,12 @@ class OrganizationUpdateView(RoleRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Организация сохранена")
         return super().form_valid(form)
+
+    def get_success_url(self):
+        # Во встроенном режиме (в модалке документа) остаёмся на карточке
+        if self.request.GET.get("embed"):
+            return reverse("organization_edit", args=[self.object.pk]) + "?embed=1"
+        return super().get_success_url()
 
 
 # ---------- Настройки: склады ----------

@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views.generic import CreateView, FormView, ListView, UpdateView
 
 from apps.core import roles
@@ -89,7 +89,10 @@ class CounterpartyEditBase(RoleRequiredMixin):
             fs.save()
         messages.success(self.request, "Контрагент сохранён")
         # Остаёмся на карточке (не выбрасываем в список) — удобно дозаполнять
-        return redirect("counterparty_edit", pk=self.object.pk)
+        url = reverse("counterparty_edit", args=[self.object.pk])
+        if self.request.GET.get("embed"):
+            url += "?embed=1"   # во встроенном режиме (в модалке документа) не теряем его
+        return redirect(url)
 
 
 def _find_duplicates(form):

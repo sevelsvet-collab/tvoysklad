@@ -199,7 +199,7 @@
   </div>
   <div class="mt-3">
     <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
-    <a href="{% url 'counterparty_list' %}" class="btn btn-outline-secondary">Закрыть</a>
+    {% if not request.GET.embed %}<a href="{% url 'counterparty_list' %}" class="btn btn-outline-secondary">Закрыть</a>{% endif %}
   </div>
 </form>
 <script>

@@ -9,8 +9,16 @@ placeholder, ac_params (JSON-строка статических парамет�
      data-ac-params='{{ ac_params|default:"{}" }}'>
   <input type="hidden" name="{{ field.html_name }}" id="{{ field.auto_id }}"
          value="{{ field.value|default_if_none:'' }}" class="ac-value">
-  <input type="text" class="form-control form-control-sm ac-input"
-         placeholder="{{ placeholder|default:'Начните вводить название или ИНН' }}"
-         value="{% if selected %}{{ selected.name }}{% endif %}">
+  <div class="input-group input-group-sm">
+    <input type="text" class="form-control ac-input"
+           placeholder="{{ placeholder|default:'Начните вводить название или ИНН' }}"
+           value="{% if selected %}{{ selected.name }}{% endif %}">
+    {% if edit_url_name %}
+    <button type="button" class="btn btn-outline-secondary ac-edit"
+            data-edit-base="{% url edit_url_name 0 %}" title="Открыть карточку контрагента">
+      <i class="bi bi-pencil"></i>
+    </button>
+    {% endif %}
+  </div>
 </div>
 {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
