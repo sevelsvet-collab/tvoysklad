@@ -128,7 +128,10 @@
               <td>{{ f.phone }}</td>
               <td>{{ f.email }}</td>
               <td>{{ f.comment }}</td>
-              <td class="text-center">{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+              <td class="text-center">
+                {% if f.instance.pk %}<span class="d-none">{{ f.DELETE }}</span>{% endif %}
+                <button type="button" class="btn btn-sm btn-outline-danger btn-row-del" title="Удалить строку"><i class="bi bi-trash"></i></button>
+              </td>
             </tr>
             {% if f.errors %}<tr><td colspan="6" class="text-danger small">{{ f.errors }}</td></tr>{% endif %}
             {% endfor %}
@@ -141,7 +144,7 @@
       <div class="card"><div class="card-body">
         {{ bank_formset.management_form }}
         <table class="table align-middle">
-          <thead><tr><th>Банк</th><th>БИК</th><th>Расчётный счёт</th><th>Корр. счёт</th><th>Основной</th><th>Удалить</th></tr></thead>
+          <thead><tr><th>Банк</th><th>БИК</th><th>Расчётный счёт <span class="text-danger">*</span></th><th>Корр. счёт</th><th>Основной</th><th>Удалить</th></tr></thead>
           <tbody>
             {% for f in bank_formset %}
             <tr>
@@ -156,7 +159,10 @@
               <td>{{ f.account }}</td>
               <td>{{ f.corr_account }}</td>
               <td class="text-center">{{ f.is_default }}</td>
-              <td class="text-center">{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+              <td class="text-center">
+                {% if f.instance.pk %}<span class="d-none">{{ f.DELETE }}</span>{% endif %}
+                <button type="button" class="btn btn-sm btn-outline-danger btn-row-del" title="Удалить строку"><i class="bi bi-trash"></i></button>
+              </td>
             </tr>
             {% if f.errors %}<tr><td colspan="6" class="text-danger small">{{ f.errors }}</td></tr>{% endif %}
             {% endfor %}
@@ -178,7 +184,10 @@
               <td>{{ f.number }}</td>
               <td>{{ f.date }}</td>
               <td>{{ f.name }}</td>
-              <td class="text-center">{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+              <td class="text-center">
+                {% if f.instance.pk %}<span class="d-none">{{ f.DELETE }}</span>{% endif %}
+                <button type="button" class="btn btn-sm btn-outline-danger btn-row-del" title="Удалить строку"><i class="bi bi-trash"></i></button>
+              </td>
             </tr>
             {% if f.errors %}<tr><td colspan="5" class="text-danger small">{{ f.errors }}</td></tr>{% endif %}
             {% endfor %}
@@ -249,6 +258,25 @@ document.addEventListener('click', async function (e) {
     alert('Ошибка запроса: ' + err);
   } finally {
     btn.disabled = false;
+  }
+});
+
+// Удаление строки в формсетах (банки, контакты, договоры)
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('.btn-row-del');
+  if (!btn) return;
+  const row = btn.closest('tr');
+  const del = row.querySelector('input[type=checkbox][name$="-DELETE"]');
+  if (del) {
+    // существующая запись — помечаем на удаление, скрываем (удалится при сохранении)
+    del.checked = true;
+    row.style.display = 'none';
+  } else {
+    // новая (несохранённая) строка — просто очищаем поля
+    row.querySelectorAll('input:not([type=hidden]), select, textarea').forEach((el) => {
+      if (el.type === 'checkbox') el.checked = false;
+      else el.value = '';
+    });
   }
 });
 </script>

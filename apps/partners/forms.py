@@ -24,6 +24,16 @@ class BankAccountForm(BootstrapFormMixin, forms.ModelForm):
         model = BankAccount
         fields = ["bank_name", "bik", "account", "corr_account", "is_default"]
 
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("DELETE"):
+            return cleaned
+        # Если реквизиты начали заполнять — расчётный счёт обязателен
+        filled = any(cleaned.get(f) for f in ("bank_name", "bik", "corr_account", "account"))
+        if filled and not cleaned.get("account"):
+            self.add_error("account", "Укажите расчётный счёт")
+        return cleaned
+
 
 class ContractForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:

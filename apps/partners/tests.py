@@ -141,6 +141,30 @@ class CounterpartyViewTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(Counterparty.objects.filter(name="Уникальный Клиент").exists())
 
+    def test_bank_account_required_when_bank_filled(self):
+        # заполнен банк/БИК, но нет расчётного счёта → ошибка, не сохраняется
+        data = self._base_data("Клиент Без Счёта")
+        data.update({
+            "banks-TOTAL_FORMS": "1", "banks-INITIAL_FORMS": "0",
+            "banks-0-bank_name": "ПАО Сбербанк", "banks-0-bik": "044525225",
+            "banks-0-account": "", "banks-0-corr_account": "30101810400000000225",
+        })
+        resp = self.client.post(reverse("counterparty_create"), data)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Укажите расчётный счёт")
+        self.assertFalse(Counterparty.objects.filter(name="Клиент Без Счёта").exists())
+
+    def test_empty_bank_row_is_ok(self):
+        # полностью пустая строка банка не мешает сохранению
+        data = self._base_data("Клиент Пустой Банк")
+        data.update({
+            "banks-TOTAL_FORMS": "1", "banks-INITIAL_FORMS": "0",
+            "banks-0-bank_name": "", "banks-0-bik": "", "banks-0-account": "", "banks-0-corr_account": "",
+        })
+        resp = self.client.post(reverse("counterparty_create"), data)
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(Counterparty.objects.filter(name="Клиент Пустой Банк").exists())
+
 
 class CounterpartySearchApiTests(TestCase):
     """Живой поиск контрагентов в документах."""
