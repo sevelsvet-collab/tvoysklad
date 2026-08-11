@@ -18,6 +18,18 @@ class LineDocumentMixin:
     def get_formset(self, data=None):
         return self.formset_class(data, prefix=self.formset_prefix, instance=self.object)
 
+    def get_initial(self):
+        initial = super().get_initial()
+        # Предзаполнение контрагента при создании из карточки: ?partner=<pk>
+        partner = self.request.GET.get("partner")
+        if partner:
+            fields = self.get_form_class().base_fields
+            for name in ("customer", "supplier", "counterparty"):
+                if name in fields:
+                    initial[name] = partner
+                    break
+        return initial
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         if "formset" not in ctx:

@@ -11,6 +11,7 @@ from apps.core.forms import ImportForm
 from apps.core.pagination import PageSizeMixin
 from apps.core.permissions import RoleRequiredMixin
 
+from .documents import counterparty_documents
 from .forms import BankAccountFormSet, ContactPersonFormSet, ContractFormSet, CounterpartyForm
 from .importers import import_counterparties
 from .models import Counterparty
@@ -58,6 +59,8 @@ class CounterpartyEditBase(RoleRequiredMixin):
             ctx["contract_formset"] = ContractFormSet(instance=self.object, prefix="contracts")
         if "contact_formset" not in ctx:
             ctx["contact_formset"] = ContactPersonFormSet(instance=self.object, prefix="contacts")
+        if self.object is not None:
+            ctx["documents"] = counterparty_documents(self.object)
         return ctx
 
     def form_valid(self, form):

@@ -38,6 +38,11 @@ def _serialize(cp):
 
 @login_required
 def counterparty_search(request):
+    # Поиск по id — для подстановки имени в предзаполненное поле (?id=<pk>)
+    id_ = request.GET.get("id")
+    if id_:
+        cp = Counterparty.objects.filter(pk=id_).first()
+        return JsonResponse({"results": [_serialize(cp)] if cp else []})
     q = request.GET.get("q", "").strip()
     qs = Counterparty.objects.filter(is_active=True)
     qs = _filter_by_type(qs, request.GET.get("type", ""))

@@ -106,6 +106,13 @@ class PaymentCreateView(PaymentEditBase, CreateView):
         kwargs["kind"] = self.kind
         return kwargs
 
+    def get_initial(self):
+        initial = super().get_initial()
+        partner = self.request.GET.get("partner")  # предзаполнение из карточки контрагента
+        if partner:
+            initial["counterparty"] = partner
+        return initial
+
     def form_valid(self, form):
         form.instance.kind = self.kind
         return super().form_valid(form)

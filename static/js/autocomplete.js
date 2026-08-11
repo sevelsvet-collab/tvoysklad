@@ -48,6 +48,24 @@
       document.body.appendChild(this.menu);
 
       this.bind();
+
+      // Значение предзаполнено (напр. из ?partner=), но текст пуст — подтянуть имя
+      if (this.valueInput.value && !this.textInput.value) {
+        this.prefillLabel(this.valueInput.value);
+      }
+    }
+
+    async prefillLabel(id) {
+      try {
+        const sep = this.url.includes('?') ? '&' : '?';
+        const resp = await fetch(this.url + sep + 'id=' + encodeURIComponent(id));
+        const json = await resp.json();
+        const item = (json.results || [])[0];
+        if (item) {
+          this.textInput.value = item.name || item.label || '';
+          this.lastLabel = this.textInput.value;
+        }
+      } catch (e) { /* тихо: поле останется пустым, значение всё равно сохранится */ }
     }
 
     bind() {
