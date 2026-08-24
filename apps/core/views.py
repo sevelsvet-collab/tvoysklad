@@ -1,6 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.urls import reverse, reverse_lazy
+from django.utils.decorators import method_decorator
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.generic import CreateView, ListView, TemplateView, UpdateView
 
 from . import roles
@@ -62,7 +64,9 @@ class OrganizationCreateView(RoleRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
+@method_decorator(xframe_options_sameorigin, name="dispatch")
 class OrganizationUpdateView(RoleRequiredMixin, UpdateView):
+    # разрешаем встраивание в модалку документа (тот же сайт)
     allowed_roles = [roles.ROLE_ADMIN]
     model = Organization
     form_class = OrganizationForm
