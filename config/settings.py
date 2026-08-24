@@ -135,6 +135,9 @@ SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
 SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False)
 SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
+# Разрешаем встраивать свои страницы в свой же iframe (карточка в модалке
+# документа). SAMEORIGIN по-прежнему запрещает встраивание на чужих сайтах.
+X_FRAME_OPTIONS = "SAMEORIGIN"
 
 # Разрешить отрицательные остатки при отгрузке (False = запрещено)
 ALLOW_NEGATIVE_STOCK = env.bool("ALLOW_NEGATIVE_STOCK", default=False)

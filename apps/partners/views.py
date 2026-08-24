@@ -4,8 +4,6 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
-from django.utils.decorators import method_decorator
-from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.generic import CreateView, FormView, ListView, UpdateView
 
 from apps.core import roles
@@ -118,9 +116,7 @@ class CounterpartyCreateView(CounterpartyEditBase, CreateView):
     pass
 
 
-@method_decorator(xframe_options_sameorigin, name="dispatch")
 class CounterpartyUpdateView(CounterpartyEditBase, UpdateView):
-    # разрешаем встраивание в модалку документа (тот же сайт)
     pass
 
 
