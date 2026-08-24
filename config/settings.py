@@ -26,6 +26,9 @@ if EMAIL_HOST:
     EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
     EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
     EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+    # Таймаут, чтобы при недоступном/неверном SMTP запрос не висел вечно,
+    # а быстро возвращал понятную ошибку.
+    EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=20)
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="sklad@example.com")
