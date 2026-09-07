@@ -1,4 +1,6 @@
 import io
+from datetime import date
+from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth import get_user_model
@@ -8,6 +10,7 @@ from django.urls import reverse
 from openpyxl import Workbook
 
 from apps.core import roles
+from apps.core.models import Organization
 
 from .importers import import_counterparties
 from .models import Counterparty
@@ -344,3 +347,296 @@ class MoySkladImportTests(TestCase):
         created, updated, errors = import_counterparties(file)
         self.assertEqual(created, 0)
         self.assertIn("Наименование", errors[0])
+
+
+class ContractTests(TestCase):
+    """Договоры: типовые шаблоны, нумерация, подстановка реквизитов, выгрузка."""
+
+    def setUp(self):
+        self.org = Organization.objects.create(
+            name='ООО "Пример"', full_name='ООО "Пример"', inn="7712345678", kpp="771201001",
+            director_name="Иванов И.И.", is_default=True,
+        )
+        self.customer = Counterparty.objects.create(
+            name='ООО "Клиент"', inn="7701234567", partner_type=Counterparty.TYPE_CUSTOMER,
+        )
+        self.user = User.objects.create_user("mgr", password="pass12345")
+        self.user.groups.add(Group.objects.get(name=roles.ROLE_MANAGER))
+        self.client.login(username="mgr", password="pass12345")
+
+    def _contract(self, with_answers=True, **extra):
+        from apps.partners.contracts import sync_answers
+        from apps.partners.models import Contract, ContractTemplate
+
+        data = dict(
+            organization=self.org, counterparty=self.customer,
+            template=ContractTemplate.objects.get(kind="supply"),
+            date=date(2026, 9, 7), place="Севастополь", amount=Decimal("150000"),
+            payment_delay_days=14, subject="поставка оборудования",
+        )
+        data.update(extra)
+        contract = Contract.objects.create(**data)
+        if with_answers and contract.template:
+            sync_answers(contract)
+        return contract
+
+    def test_builtin_constructor_created(self):
+        from apps.partners.models import ContractOption, ContractTemplate
+
+        template = ContractTemplate.objects.get(is_builtin=True, kind="supply")
+        self.assertGreaterEqual(template.questions.count(), 10)
+        self.assertGreaterEqual(ContractOption.objects.filter(question__template=template).count(), 20)
+        # у каждого вопроса есть хотя бы один готовый вариант
+        for question in template.questions.all():
+            self.assertGreaterEqual(question.options.count(), 1, question.title)
+
+    def test_answers_created_with_defaults(self):
+        contract = self._contract()
+        self.assertEqual(contract.answers.count(), contract.template.questions.count())
+        # у каждого ответа либо выбран вариант, либо пункт помечен как не предусмотренный
+        self.assertTrue(all(a.option_id or a.is_skipped for a in contract.answers.all()))
+
+    def test_optional_clause_off_by_default(self):
+        """Редкие условия (возвратная тара, маркировка) сами в договор не лезут."""
+        from apps.partners.contracts import build_contract_text
+
+        contract = self._contract()
+        answer = contract.answers.select_related("question").get(
+            question__title="Обязательная маркировка товара",
+        )
+        self.assertTrue(answer.is_skipped)
+        self.assertNotIn("подлежит маркировке", build_contract_text(contract))
+
+    def test_selecting_option_changes_text(self):
+        from apps.partners.contracts import build_contract_text
+
+        contract = self._contract()
+        answer = contract.answers.select_related("question").get(question__title__icontains="Порядок оплаты")
+        prepay = answer.question.options.get(label__icontains="Полная предоплата")
+        answer.option, answer.body_snapshot = prepay, prepay.body
+        answer.save()
+        text = build_contract_text(contract)
+        self.assertIn("100% предварительную оплату", text)
+
+    def test_skipped_question_excluded(self):
+        from apps.partners.contracts import build_contract_text
+
+        contract = self._contract()
+        answer = (
+            contract.answers.select_related("question")
+            .filter(question__allow_none=True, option__isnull=False).first()
+        )
+        marker = answer.text[:40]
+        answer.is_skipped = True
+        answer.save()
+        self.assertNotIn(marker, build_contract_text(contract))
+
+    def test_custom_text_used(self):
+        from apps.partners.contracts import build_contract_text
+
+        contract = self._contract()
+        answer = contract.answers.first()
+        answer.custom_text = "Особое условие, согласованное Сторонами."
+        answer.save()
+        self.assertIn("Особое условие, согласованное Сторонами.", build_contract_text(contract))
+
+    def test_template_edit_does_not_change_signed_contract(self):
+        """Снимок: правка шаблона не меняет уже заключённый договор."""
+        from apps.partners.contracts import build_contract_text
+
+        contract = self._contract()
+        answer = contract.answers.first()
+        option = answer.option
+        option.body = "ИЗМЕНЁННЫЙ ТЕКСТ ШАБЛОНА"
+        option.save()
+        self.assertNotIn("ИЗМЕНЁННЫЙ ТЕКСТ ШАБЛОНА", build_contract_text(contract))
+
+    def test_sections_numbered_automatically(self):
+        from apps.partners.contracts import build_contract_text
+
+        text = build_contract_text(self._contract())
+        self.assertIn("1. ПРЕДМЕТ ДОГОВОРА", text)
+        self.assertIn("1.1.", text)
+        self.assertIn("АДРЕСА, РЕКВИЗИТЫ И ПОДПИСИ СТОРОН", text)
+
+    def test_number_assigned_automatically(self):
+        first = self._contract()
+        second = self._contract()
+        self.assertEqual(first.number, "00001")
+        self.assertEqual(second.number, "00002")
+
+    def test_manual_number_kept(self):
+        contract = self._contract(number="ДП-2026/7")
+        self.assertEqual(contract.number, "ДП-2026/7")
+
+    def test_requisites_substituted(self):
+        from apps.partners.contracts import build_contract_text
+
+        body = build_contract_text(self._contract())
+        self.assertIn('ООО "Пример"', body)              # наша организация
+        self.assertIn('ООО "Клиент"', body)              # контрагент
+        self.assertIn("7712345678", body)                # наш ИНН
+        self.assertIn("7701234567", body)                # ИНН контрагента
+        self.assertIn("Севастополь", body)               # место подписания
+        self.assertIn("14 календарных дней", body)       # отсрочка из карточки
+        self.assertIn("поставка оборудования", body)     # предмет
+        self.assertIn("Генерального директора", body)    # должность в родительном падеже
+        self.assertNotIn("&quot;", body)                 # текст, а не HTML
+        self.assertNotIn("[", body)                      # плашек не осталось
+
+    def test_empty_counterparty_director_no_double_comma(self):
+        from apps.partners.contracts import build_contract_text
+
+        body = build_contract_text(self._contract())   # у контрагента не задан руководитель
+        self.assertNotIn(", ,", body)
+
+    def test_validity_and_expired(self):
+        perpetual = self._contract(is_perpetual=True)
+        self.assertEqual(perpetual.validity_display, "бессрочный")
+        self.assertFalse(perpetual.is_expired)
+        expired = self._contract(valid_to=date(2020, 1, 1))
+        self.assertTrue(expired.is_expired)
+
+    def test_pdf_and_docx_download(self):
+        contract = self._contract()
+        pdf = self.client.get(reverse("contract_pdf", args=[contract.pk]))
+        self.assertEqual(pdf.status_code, 200)
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+        self.assertTrue(pdf.content.startswith(b"%PDF"))
+
+        docx = self.client.get(reverse("contract_docx", args=[contract.pk]))
+        self.assertEqual(docx.status_code, 200)
+        self.assertIn("wordprocessingml", docx["Content-Type"])
+        self.assertTrue(docx.content.startswith(b"PK"))  # docx — zip-контейнер
+
+    def test_download_without_template_redirects(self):
+        contract = self._contract(template=None)
+        resp = self.client.get(reverse("contract_pdf", args=[contract.pk]))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_new_contract_form_shows_questions(self):
+        """Вопросы конструктора видны сразу, без предварительного сохранения."""
+        from apps.partners.models import ContractTemplate
+
+        template = ContractTemplate.objects.get(kind="supply")
+        resp = self.client.get(reverse("contract_create"), {"template": template.pk})
+        self.assertEqual(resp.status_code, 200)
+        question = template.questions.first()
+        self.assertContains(resp, f'name="q_{question.pk}"')
+        self.assertContains(resp, question.title)
+
+    def test_questions_partial_loads_by_template(self):
+        from apps.partners.models import ContractTemplate
+
+        template = ContractTemplate.objects.get(kind="supply")
+        resp = self.client.get(reverse("contract_questions"), {"template": template.pk})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, f'name="q_{template.questions.first().pk}"')
+
+    def test_create_contract_with_answers_in_one_step(self):
+        """Выбрал вид → ответил на вопросы → сохранил: ответы попали в договор."""
+        from apps.partners.contracts import build_contract_text
+        from apps.partners.models import Contract, ContractTemplate
+
+        template = ContractTemplate.objects.get(kind="supply")
+        question = template.questions.filter(allow_custom=True).first()
+        data = {
+            "template": template.pk, "organization": self.org.pk, "counterparty": self.customer.pk,
+            "date": "2026-09-07", "place": "Севастополь", "subject": "поставка оборудования",
+            "amount": "150000", "payment_delay_days": "14", "prepayment_percent": "0",
+            "delivery_days": "0", "warranty_months": "0",
+            "penalty_rate": "0.1", "penalty_cap_percent": "10", "claim_days": "10",
+            f"q_{question.pk}": "custom",
+            f"custom_{question.pk}": "Особое условие из формы.",
+        }
+        for other in template.questions.exclude(pk=question.pk):
+            option = other.options.first()
+            if option:
+                data[f"q_{other.pk}"] = option.pk
+        resp = self.client.post(reverse("contract_create"), data)
+        self.assertEqual(resp.status_code, 302, getattr(resp, "context", None) and resp.context["form"].errors)
+        contract = Contract.objects.get()
+        self.assertEqual(contract.answers.count(), template.questions.count())
+        self.assertIn("Особое условие из формы.", build_contract_text(contract))
+
+    # ---------- Договор купли-продажи ----------
+
+    def _sale_contract(self, **extra):
+        from apps.partners.models import ContractTemplate
+
+        data = dict(template=ContractTemplate.objects.get(kind="sale", is_active=True),
+                    subject="погрузчик Toyota 8FG25")
+        data.update(extra)
+        return self._contract(**data)
+
+    def test_sale_constructor_created(self):
+        from apps.partners.models import ContractOption, ContractTemplate
+
+        template = ContractTemplate.objects.get(kind="sale", is_active=True, is_builtin=True)
+        self.assertGreaterEqual(template.questions.count(), 60)
+        self.assertGreaterEqual(len({q.section for q in template.questions.all()}), 12)
+        self.assertGreaterEqual(ContractOption.objects.filter(question__template=template).count(), 120)
+        for question in template.questions.all():
+            self.assertGreaterEqual(question.options.count(), 1, question.title)
+
+    def test_sale_contract_text_is_complete(self):
+        from apps.partners.contracts import build_contract_text
+
+        text = build_contract_text(self._sale_contract())
+        self.assertIn("ДОГОВОР КУПЛИ-ПРОДАЖИ ТОВАРА", text)
+        self.assertIn("«Продавец»", text)
+        self.assertIn("«Покупатель»", text)
+        for section in ("ПРЕДМЕТ ДОГОВОРА", "ГАРАНТИЙНЫЕ ОБЯЗАТЕЛЬСТВА", "ПЕРЕДАЧА ТОВАРА",
+                        "ПЕРЕХОД ПРАВА СОБСТВЕННОСТИ И РИСКОВ", "ОТВЕТСТВЕННОСТЬ СТОРОН",
+                        "РАЗРЕШЕНИЕ СПОРОВ"):
+            self.assertIn(section, text)
+        self.assertNotIn("[", text)      # плашек не осталось
+        self.assertNotIn(", ,", text)    # нет следов незаполненных данных
+
+    def test_used_goods_condition_in_text(self):
+        from apps.partners.contracts import build_contract_text
+        from apps.partners.models import Contract
+
+        contract = self._sale_contract(
+            goods_condition=Contract.CONDITION_USED,
+            goods_details="Погрузчик Toyota 8FG25, зав. № 12345, 2018 г. в., 4 200 моточасов",
+        )
+        text = build_contract_text(contract)
+        self.assertIn("бывшим в употреблении", text)
+        self.assertIn("зав. № 12345", text)
+
+    def test_new_goods_condition_in_text(self):
+        from apps.partners.contracts import build_contract_text
+        from apps.partners.models import Contract
+
+        text = build_contract_text(self._sale_contract(goods_condition=Contract.CONDITION_NEW))
+        self.assertIn("не бывшим в эксплуатации", text)
+
+    def test_genitive_fio(self):
+        from apps.partners.contracts import genitive_fio
+
+        self.assertEqual(genitive_fio("Иванов Иван Иванович"), "Иванова Ивана Ивановича")
+        self.assertEqual(genitive_fio("Петрова Мария Сергеевна"), "Петровой Марии Сергеевны")
+        self.assertEqual(genitive_fio("Кравченко Андрей Ильич"), "Кравченко Андрея Ильича")
+        self.assertEqual(genitive_fio("Иванов И.И."), "Иванова И.И.")
+
+    def test_female_director_acting_form(self):
+        from apps.partners.contracts import build_contract_text
+
+        self.org.director_name = "Петрова Мария Сергеевна"
+        self.org.save()
+        text = build_contract_text(self._sale_contract())
+        self.assertIn("действующей на основании", text)
+
+    def test_amount_formatted_in_russian(self):
+        from apps.partners.contracts import build_contract_text
+
+        text = build_contract_text(self._sale_contract(amount=Decimal("450000")))
+        self.assertIn("450 000,00", text)
+
+    def test_contract_shown_in_counterparty_documents(self):
+        from apps.partners.documents import counterparty_documents
+
+        contract = self._contract()
+        docs = counterparty_documents(self.customer)
+        self.assertTrue(any(d["number"] == contract.number for d in docs))

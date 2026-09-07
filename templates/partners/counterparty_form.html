@@ -172,29 +172,43 @@
       </div></div>
     </div>
     <div class="tab-pane fade" id="tab-contracts">
-      <div class="card"><div class="card-body">
-        {{ contract_formset.management_form }}
-        <table class="table align-middle">
-          <thead><tr><th>Организация</th><th>Номер</th><th>Дата</th><th>Название</th><th>Удалить</th></tr></thead>
-          <tbody>
-            {% for f in contract_formset %}
-            <tr>
-              {{ f.id }}
-              <td>{{ f.organization }}</td>
-              <td>{{ f.number }}</td>
-              <td>{{ f.date }}</td>
-              <td>{{ f.name }}</td>
-              <td class="text-center">
-                {% if f.instance.pk %}<span class="d-none">{{ f.DELETE }}</span>{% endif %}
-                <button type="button" class="btn btn-sm btn-outline-danger btn-row-del" title="Удалить строку"><i class="bi bi-trash"></i></button>
-              </td>
-            </tr>
-            {% if f.errors %}<tr><td colspan="5" class="text-danger small">{{ f.errors }}</td></tr>{% endif %}
-            {% endfor %}
-          </tbody>
-        </table>
-        <p class="text-muted small mb-0">Пустая строка — для добавления нового договора.</p>
-      </div></div>
+      {% if object %}
+      <div class="mb-3">
+        <a href="{% url 'contract_create' %}?partner={{ object.pk }}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-plus-lg me-1"></i>Заключить договор
+        </a>
+      </div>
+      <div class="card">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>№</th><th>Дата</th><th>Вид договора</th><th>Срок действия</th><th class="text-end">Сумма</th><th></th></tr>
+            </thead>
+            <tbody>
+              {% for c in contracts %}
+              <tr onclick="window.location='{% url 'contract_edit' c.pk %}'" style="cursor:pointer">
+                <td class="fw-semibold">{{ c.number|default:"—" }}</td>
+                <td>{{ c.date|date:"d.m.Y"|default:"—" }}</td>
+                <td>{{ c.template.name|default:c.name|default:"—" }}</td>
+                <td>{{ c.validity_display }}{% if c.is_expired %} <span class="badge bg-danger">истёк</span>{% endif %}</td>
+                <td class="text-end">{% if c.amount %}{{ c.amount|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+                <td class="text-end text-nowrap" onclick="event.stopPropagation()">
+                  {% if c.template %}
+                  <a href="{% url 'contract_pdf' c.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary" title="PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+                  <a href="{% url 'contract_docx' c.pk %}" class="btn btn-sm btn-outline-secondary" title="Word"><i class="bi bi-file-earmark-word"></i></a>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6" class="text-center text-muted py-4">Договоров с этим контрагентом пока нет</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% else %}
+      <div class="text-muted">Сохраните контрагента — после этого можно будет заключать договоры.</div>
+      {% endif %}
     </div>
   </div>
   <div class="mt-3">

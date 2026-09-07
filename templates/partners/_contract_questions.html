@@ -1,0 +1,57 @@
+{% comment %}
+Вопросы конструктора договора. Работает и для нового договора (варианты
+по умолчанию), и для сохранённого (выбор пользователя).
+Ожидает: sections, template.
+{% endcomment %}
+{% if sections %}
+<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+  <h5 class="mb-0">Условия договора</h5>
+  {% if template %}<span class="badge text-bg-light border">{{ template.title|default:template.name }}</span>{% endif %}
+  <span class="text-muted small">выберите формулировки — текст соберётся сам</span>
+</div>
+
+{% for section in sections %}
+<div class="card mb-3">
+  <div class="card-header py-2 fw-semibold">{{ forloop.counter }}. {{ section.title }}</div>
+  <div class="card-body py-2">
+    {% for item in section.questions %}
+    {% with q=item.question %}
+    <div class="py-2 {% if not forloop.last %}border-bottom{% endif %}">
+      <div class="fw-semibold small mb-1">{{ q.title }}</div>
+      {% if q.help_text %}<div class="text-muted small mb-1">{{ q.help_text }}</div>{% endif %}
+
+      {% for option in q.options.all %}
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="q_{{ q.pk }}" value="{{ option.pk }}"
+               id="opt{{ option.pk }}" {% if item.selected == option.pk|stringformat:"s" %}checked{% endif %}>
+        <label class="form-check-label" for="opt{{ option.pk }}">{{ option.label }}</label>
+      </div>
+      {% endfor %}
+
+      {% if q.allow_none %}
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="q_{{ q.pk }}" value="none"
+               id="none{{ q.pk }}" {% if item.selected == "none" %}checked{% endif %}>
+        <label class="form-check-label text-muted" for="none{{ q.pk }}">Пункт не предусмотрен</label>
+      </div>
+      {% endif %}
+
+      {% if q.allow_custom %}
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="q_{{ q.pk }}" value="custom"
+               id="custom{{ q.pk }}" {% if item.selected == "custom" %}checked{% endif %}>
+        <label class="form-check-label" for="custom{{ q.pk }}">Свой вариант</label>
+      </div>
+      <textarea name="custom_{{ q.pk }}" id="ctext{{ q.pk }}" rows="2"
+                class="form-control form-control-sm mt-1 {% if item.selected != 'custom' %}d-none{% endif %}"
+                placeholder="Напишите свою формулировку пункта">{{ item.custom_text }}</textarea>
+      {% endif %}
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% elif template %}
+<div class="alert alert-warning">У этого шаблона пока нет вопросов конструктора.</div>
+{% endif %}

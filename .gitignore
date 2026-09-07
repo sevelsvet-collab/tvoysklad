@@ -20,3 +20,6 @@ db.sqlite3
 .ruff_cache/
 .idea/
 .vscode/
+
+# локальная конфигурация dev-сервера
+.claude/

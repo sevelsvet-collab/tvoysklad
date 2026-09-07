@@ -44,8 +44,20 @@ class Organization(models.Model):
     bank_account = models.CharField("Расчётный счёт", max_length=20, blank=True)
     corr_account = models.CharField("Корр. счёт", max_length=20, blank=True)
 
+    KIND_LEGAL = "legal"
+    KIND_ENTREPRENEUR = "entrepreneur"
+    KIND_CHOICES = [
+        (KIND_LEGAL, "Юридическое лицо"),
+        (KIND_ENTREPRENEUR, "Индивидуальный предприниматель"),
+    ]
+    kind = models.CharField("Форма", max_length=16, choices=KIND_CHOICES, default=KIND_LEGAL)
+
     director_name = models.CharField("Руководитель (ФИО)", max_length=255, blank=True)
     director_position = models.CharField("Должность руководителя", max_length=255, blank=True, default="Генеральный директор")
+    signatory_basis = models.CharField(
+        "Действует на основании", max_length=255, blank=True, default="Устава",
+        help_text="Например: Устава, Свидетельства о регистрации, Доверенности № 5 от 01.01.2026",
+    )
     accountant_name = models.CharField("Главный бухгалтер (ФИО)", max_length=255, blank=True)
 
     signature = models.ImageField("Подпись (картинка)", upload_to="org/", blank=True, null=True)

@@ -65,6 +65,8 @@ def navigation(request):
         ]),
         section("partners", "Контрагенты", "bi-people", [
             ("Контрагенты", "counterparty_list", ["counterparty_"]),
+            ("Договоры", "contract_list", ["contract_list", "contract_edit", "contract_create"]),
+            ("Шаблоны договоров", "contract_template_list", ["contract_template_"]),
             ("Импорт", "partners_import", ["partners_import"]),
         ]),
         section("money", "Деньги", "bi-cash-stack", [

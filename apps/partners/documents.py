@@ -35,6 +35,18 @@ def counterparty_documents(cp):
     add(cp.supplier_returns.prefetch_related("lines"), "Возврат поставщику",
         "bi-arrow-return-right", "supplier_return_edit")
 
+    for c in cp.contracts.select_related("template"):
+        docs.append({
+            "type_label": c.template.name if c.template else (c.name or "Договор"),
+            "icon": "bi-file-earmark-ruled",
+            "number": c.number,
+            "date": c.date,
+            "amount": c.amount or 0,
+            "status": "Истёк" if c.is_expired else "Действует",
+            "is_posted": not c.is_expired,
+            "url": reverse("contract_edit", args=[c.pk]),
+        })
+
     for p in cp.payments.select_related("account"):
         docs.append({
             "type_label": "Входящий платёж" if p.kind == "incoming" else "Исходящий платёж",

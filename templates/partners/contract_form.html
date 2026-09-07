@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Договор — Склад{% endblock %}
+{% block page_title %}{% if object %}Договор № {{ object.number }}{% else %}Новый договор{% endif %}{% endblock %}
+{% block content %}
+{% url 'api_counterparty_search' as cp_search_url %}
+{% url 'api_counterparty_quick_create' as cp_create_url %}
+<form id="doc-action" method="post">{% csrf_token %}</form>
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+    <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
+    {% if object %}
+      {% if object.template %}
+        <a href="{% url 'contract_pdf' object.pk %}" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>Скачать PDF</a>
+        <a href="{% url 'contract_docx' object.pk %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-word me-1"></i>Скачать Word</a>
+      {% endif %}
+      <button type="submit" form="doc-action" formaction="{% url 'contract_delete' object.pk %}" class="btn btn-outline-danger btn-sm"
+              onclick="return confirm('Удалить договор?');"><i class="bi bi-trash me-1"></i>Удалить</button>
+    {% endif %}
+    <a href="{% url 'contract_list' %}" class="btn btn-outline-secondary btn-sm">Закрыть</a>
+    {% if object.is_expired %}<span class="badge bg-danger">Срок истёк</span>{% endif %}
+  </div>
+
+  {# ---------- Параметры договора ---------- #}
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Вид договора <span class="text-danger">*</span></label>
+          <div hx-get="{% url 'contract_questions' %}" hx-trigger="change from:#id_template"
+               hx-target="#constructor" hx-include="#id_template" hx-swap="innerHTML">
+            {{ form.template }}
+          </div>
+          {% if form.template.errors %}<div class="text-danger small">{{ form.template.errors.0 }}</div>{% endif %}
+          <div class="form-text">Выберите — ниже появятся условия договора.</div>
+        </div>
+        <div class="col-md-2"><label class="form-label">Дата</label>{{ form.date }}</div>
+        <div class="col-md-2"><label class="form-label">Номер</label>{{ form.number }}</div>
+        <div class="col-md-4"><label class="form-label">Место подписания</label>{{ form.place }}</div>
+
+        <div class="col-md-5"><label class="form-label">Наша организация</label>{{ form.organization }}</div>
+        <div class="col-md-5">
+          <label class="form-label">Контрагент</label>
+          {% include "documents/_ac_field.html" with field=form.counterparty selected=form.instance.counterparty search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" edit_url_name="counterparty_edit" %}
+          {% if form.counterparty.errors %}<div class="text-danger small">{{ form.counterparty.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-2"><label class="form-label">Сумма, ₽</label>{{ form.amount }}</div>
+
+        <div class="col-md-3"><label class="form-label">Отсрочка, дней</label>{{ form.payment_delay_days }}</div>
+        <div class="col-md-3"><label class="form-label">Предоплата, %</label>{{ form.prepayment_percent }}</div>
+        <div class="col-md-3"><label class="form-label">Действует с</label>{{ form.valid_from }}</div>
+        <div class="col-md-3"><label class="form-label">Действует по</label>{{ form.valid_to }}
+          {% if form.valid_to.errors %}<div class="text-danger small">{{ form.valid_to.errors.0 }}</div>{% endif %}</div>
+
+        <div class="col-12"><hr class="my-1"></div>
+        <div class="col-md-5"><label class="form-label">Место поставки</label>{{ form.delivery_place }}</div>
+        <div class="col-md-2"><label class="form-label">Срок поставки, дней</label>{{ form.delivery_days }}</div>
+        <div class="col-md-2"><label class="form-label">Гарантия, мес.</label>{{ form.warranty_months }}</div>
+        <div class="col-md-1"><label class="form-label">Пеня, %/день</label>{{ form.penalty_rate }}</div>
+        <div class="col-md-1"><label class="form-label">Предел пени, %</label>{{ form.penalty_cap_percent }}</div>
+        <div class="col-md-1"><label class="form-label">Претензия, дней</label>{{ form.claim_days }}</div>
+
+        <div class="col-12"><hr class="my-1"></div>
+        <div class="col-md-3">
+          <label class="form-label">Состояние товара</label>{{ form.goods_condition }}
+          <div class="form-text">Новый, б/у, восстановленный — попадёт в текст договора</div>
+        </div>
+        <div class="col-md-9">
+          <label class="form-label">Сведения о товаре</label>{{ form.goods_details }}
+          <div class="form-text">Марка, модель, серийный номер, год выпуска, наработка, комплектация</div>
+        </div>
+
+        <div class="col-md-6"><label class="form-label">Предмет договора</label>{{ form.subject }}</div>
+        <div class="col-md-6">
+          <label class="form-label">Скан подписанного</label>{{ form.scan }}
+          {% if object.scan %}<div class="form-text"><a href="{{ object.scan.url }}" target="_blank">Загруженный файл</a></div>{% endif %}
+          <div class="d-flex gap-3 mt-2">
+            <div class="form-check">{{ form.is_perpetual }}<label class="form-check-label">Бессрочный</label></div>
+            <div class="form-check">{{ form.auto_renew }}<label class="form-check-label">Автопролонгация</label></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    {# ---------- Конструктор: подгружается при выборе вида договора ---------- #}
+    <div class="col-lg-7">
+      <div id="constructor">
+        {% include "partners/_contract_questions.html" %}
+        {% if not sections %}
+        <div class="alert alert-info mb-0">
+          <i class="bi bi-arrow-up me-1"></i>Выберите вид договора вверху — здесь появятся условия
+          с готовыми формулировками на выбор.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ---------- Предпросмотр ---------- #}
+    <div class="col-lg-5">
+      {% if preview %}
+      <div class="card position-sticky" style="top:1rem">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+          <span class="fw-semibold">Готовый договор</span>
+          <span class="text-muted small">обновляется после сохранения</span>
+        </div>
+        <div class="card-body p-0">
+          <pre class="mb-0 p-3" style="white-space:pre-wrap; font-size:.78rem; max-height:65vh; overflow:auto;">{{ preview }}</pre>
+        </div>
+      </div>
+      {% else %}
+      <div class="card"><div class="card-body text-muted">
+        Заполните условия и нажмите «Сохранить» — здесь появится готовый текст договора,
+        а также кнопки выгрузки в PDF и Word.
+      </div></div>
+      {% endif %}
+      <div class="alert alert-warning small mt-3 mb-0">
+        <i class="bi bi-info-circle me-1"></i>Типовые формулировки — заготовки для обычных сделок.
+        Перед подписанием договор стоит проверить с юристом.
+      </div>
+    </div>
+  </div>
+</form>
+<script>
+// «Свой вариант» — показываем поле для текста
+document.addEventListener('change', function (e) {
+  const radio = e.target;
+  if (radio.type !== 'radio' || !radio.name.startsWith('q_')) return;
+  const question = radio.name.slice(2);
+  const box = document.getElementById('ctext' + question);
+  if (box) box.classList.toggle('d-none', radio.value !== 'custom');
+});
+</script>
+{% endblock %}
