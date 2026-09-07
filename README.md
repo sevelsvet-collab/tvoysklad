@@ -148,6 +148,17 @@ git pull
 docker compose up -d --build      # пересобрать и перезапустить (миграции применятся сами)
 ```
 
+Если сервер работает **за общим Caddy** (схема `docker-compose.behind-proxy.yml`,
+контейнеры `sklad-db` и `sklad-web`), команды те же, но с указанием файла:
+
+```bash
+cd /opt/sklad
+docker compose -f docker-compose.behind-proxy.yml exec db pg_dump -U sklad sklad > backup_$(date +%F).sql
+git pull
+docker compose -f docker-compose.behind-proxy.yml up -d --build
+docker compose -f docker-compose.behind-proxy.yml logs -f web
+```
+
 ### 6. Почта (отправка счетов на e-mail)
 
 Заполните в `.env` (пример для Яндекс 360):
