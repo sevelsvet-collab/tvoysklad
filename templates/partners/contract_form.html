@@ -140,6 +140,15 @@
   </div>
 </form>
 <script>
+// Защита от дублей: повторный клик по «Сохранить» до ответа сервера
+// создавал ещё один договор.
+document.querySelector('form[enctype]').addEventListener('submit', function () {
+  this.querySelectorAll('button[type=submit]').forEach(btn => {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохраняем…';
+  });
+});
+
 // «Свой вариант» — показываем поле для текста
 document.addEventListener('change', function (e) {
   const radio = e.target;

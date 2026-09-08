@@ -11,41 +11,92 @@
          placeholder="Номер, название, контрагент" value="{{ request.GET.q|default:'' }}">
   <button class="btn btn-sm btn-outline-secondary">Найти</button>
 </form>
-<div class="card">
-  <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-      <thead class="table-light">
-        <tr>
-          <th>№</th><th>Дата</th><th>Контрагент</th><th>Вид договора</th>
-          <th>Срок действия</th><th class="text-end">Сумма</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for c in contracts %}
-        <tr onclick="window.location='{% url 'contract_edit' c.pk %}'" style="cursor:pointer">
-          <td class="fw-semibold">{{ c.number|default:"—" }}</td>
-          <td>{{ c.date|date:"d.m.Y"|default:"—" }}</td>
-          <td>{{ c.counterparty.name }}</td>
-          <td>{{ c.template.name|default:c.name|default:"—" }}</td>
-          <td>
-            {{ c.validity_display }}
-            {% if c.is_expired %}<span class="badge bg-danger ms-1">истёк</span>{% endif %}
-          </td>
-          <td class="text-end">{% if c.amount %}{{ c.amount|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
-          <td class="text-end text-nowrap" onclick="event.stopPropagation()">
-            {% if c.template %}
-            <a href="{% url 'contract_pdf' c.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary" title="PDF"><i class="bi bi-file-earmark-pdf"></i></a>
-            <a href="{% url 'contract_docx' c.pk %}" class="btn btn-sm btn-outline-secondary" title="Word"><i class="bi bi-file-earmark-word"></i></a>
-            {% endif %}
-            {% if c.scan %}<a href="{{ c.scan.url }}" target="_blank" class="btn btn-sm btn-outline-success" title="Скан подписанного"><i class="bi bi-paperclip"></i></a>{% endif %}
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-4">Договоров пока нет</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+{# ── Панель массовых действий (появляется, когда что-то отмечено) ── #}
+<div id="bulk-bar" class="d-none alert alert-secondary py-2 mb-2">
+  <div class="d-flex align-items-center gap-3">
+    <span class="small">Выбрано: <b id="bulk-count">0</b></span>
+    <button type="submit" form="bulk-form" class="btn btn-sm btn-danger"
+            onclick="return confirm('Удалить выбранные договоры? Отменить будет нельзя.')">
+      <i class="bi bi-trash me-1"></i>Удалить выбранные
+    </button>
+    <button type="button" class="btn btn-sm btn-link text-secondary ms-auto p-0" id="clear-sel">
+      Снять выделение
+    </button>
   </div>
 </div>
+
+<form method="post" action="{% url 'contract_bulk_delete' %}" id="bulk-form">
+  {% csrf_token %}
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:32px;"><input type="checkbox" class="form-check-input" id="select-all"></th>
+            <th>№</th><th>Дата</th><th>Контрагент</th><th>Вид договора</th>
+            <th>Срок действия</th><th class="text-end">Сумма</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in contracts %}
+          <tr class="contract-row" data-url="{% url 'contract_edit' c.pk %}" style="cursor:pointer">
+            <td onclick="event.stopPropagation()">
+              <input type="checkbox" name="ids" value="{{ c.pk }}" class="form-check-input row-check">
+            </td>
+            <td class="fw-semibold">{{ c.number|default:"—" }}</td>
+            <td>{{ c.date|date:"d.m.Y"|default:"—" }}</td>
+            <td>{{ c.counterparty.name }}</td>
+            <td>{{ c.template.name|default:c.name|default:"—" }}</td>
+            <td>
+              {{ c.validity_display }}
+              {% if c.is_expired %}<span class="badge bg-danger ms-1">истёк</span>{% endif %}
+            </td>
+            <td class="text-end">{% if c.amount %}{{ c.amount|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+            <td class="text-end text-nowrap" onclick="event.stopPropagation()">
+              {% if c.template %}
+              <a href="{% url 'contract_pdf' c.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary" title="PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+              <a href="{% url 'contract_docx' c.pk %}" class="btn btn-sm btn-outline-secondary" title="Word"><i class="bi bi-file-earmark-word"></i></a>
+              {% endif %}
+              {% if c.scan %}<a href="{{ c.scan.url }}" target="_blank" class="btn btn-sm btn-outline-success" title="Скан подписанного"><i class="bi bi-paperclip"></i></a>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="text-center text-muted py-4">Договоров пока нет</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
 {% include "partials/_pagination.html" %}
+
+<script>
+(function () {
+  const rows = document.querySelectorAll('.contract-row');
+  const checks = document.querySelectorAll('.row-check');
+  const bar = document.getElementById('bulk-bar');
+
+  rows.forEach(row => row.addEventListener('click', function (e) {
+    if (e.target.tagName === 'INPUT' || e.target.closest('a')) return;
+    window.location = this.dataset.url;
+  }));
+
+  function updateBar() {
+    const n = document.querySelectorAll('.row-check:checked').length;
+    document.getElementById('bulk-count').textContent = n;
+    bar.classList.toggle('d-none', n === 0);
+  }
+  checks.forEach(cb => cb.addEventListener('change', updateBar));
+  document.getElementById('select-all').addEventListener('change', function () {
+    checks.forEach(cb => { cb.checked = this.checked; });
+    updateBar();
+  });
+  document.getElementById('clear-sel').addEventListener('click', function () {
+    checks.forEach(cb => { cb.checked = false; });
+    document.getElementById('select-all').checked = false;
+    updateBar();
+  });
+})();
+</script>
 {% endblock %}

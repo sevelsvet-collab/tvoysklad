@@ -384,11 +384,64 @@ class ContractTests(TestCase):
         from apps.partners.models import ContractOption, ContractTemplate
 
         template = ContractTemplate.objects.get(is_builtin=True, kind="supply")
-        self.assertGreaterEqual(template.questions.count(), 10)
-        self.assertGreaterEqual(ContractOption.objects.filter(question__template=template).count(), 20)
+        self.assertGreaterEqual(template.questions.count(), 80)
+        self.assertGreaterEqual(len({q.section for q in template.questions.all()}), 12)
+        self.assertGreaterEqual(ContractOption.objects.filter(question__template=template).count(), 150)
         # у каждого вопроса есть хотя бы один готовый вариант
         for question in template.questions.all():
             self.assertGreaterEqual(question.options.count(), 1, question.title)
+
+    def test_supply_contract_text_is_complete(self):
+        from apps.partners.contracts import build_contract_text
+
+        text = build_contract_text(self._contract())
+        self.assertIn("ДОГОВОР ПОСТАВКИ", text)
+        self.assertIn("«Поставщик»", text)
+        self.assertIn("«Покупатель»", text)
+        for section in ("ПРЕДМЕТ ДОГОВОРА", "СРОКИ И ПОРЯДОК ПОСТАВКИ", "ПРИЁМКА ТОВАРА",
+                        "ОТВЕТСТВЕННОСТЬ СТОРОН", "РАЗРЕШЕНИЕ СПОРОВ"):
+            self.assertIn(section, text)
+        # нормы о поставке, а не общие о купле-продаже
+        self.assertIn("статья 511 ГК РФ", text)   # восполнение недопоставки
+        self.assertIn("статья 514 ГК РФ", text)   # ответственное хранение
+        self.assertNotIn("[", text)
+        self.assertNotIn(", ,", text)
+
+    def test_supply_pdf_parties(self):
+        from apps.partners.contracts import build_contract_blocks
+
+        left, right = build_contract_blocks(self._contract())["parties"]
+        self.assertEqual((left["role"], right["role"]), ("ПОСТАВЩИК", "ПОКУПАТЕЛЬ"))
+
+    def test_supply_pdf_and_docx_download(self):
+        contract = self._contract()
+        pdf = self.client.get(reverse("contract_pdf", args=[contract.pk]))
+        self.assertTrue(pdf.content.startswith(b"%PDF"))
+        docx = self.client.get(reverse("contract_docx", args=[contract.pk]))
+        self.assertTrue(docx.content.startswith(b"PK"))
+
+    def test_bulk_delete_removes_selected(self):
+        from apps.partners.models import Contract
+
+        keep, drop_one, drop_two = self._contract(), self._contract(), self._contract()
+        resp = self.client.post(reverse("contract_bulk_delete"),
+                                {"ids": [drop_one.pk, drop_two.pk]})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(list(Contract.objects.values_list("pk", flat=True)), [keep.pk])
+
+    def test_bulk_delete_without_selection_keeps_contracts(self):
+        from apps.partners.models import Contract
+
+        self._contract()
+        resp = self.client.post(reverse("contract_bulk_delete"), {})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Contract.objects.count(), 1)
+
+    def test_list_has_checkboxes(self):
+        contract = self._contract()
+        resp = self.client.get(reverse("contract_list"))
+        self.assertContains(resp, f'name="ids" value="{contract.pk}"')
+        self.assertContains(resp, "Удалить выбранные")
 
     def test_answers_created_with_defaults(self):
         contract = self._contract()
@@ -402,21 +455,21 @@ class ContractTests(TestCase):
 
         contract = self._contract()
         answer = contract.answers.select_related("question").get(
-            question__title="Обязательная маркировка товара",
+            question__title="Маркировка и прослеживаемость товара",
         )
         self.assertTrue(answer.is_skipped)
-        self.assertNotIn("подлежит маркировке", build_contract_text(contract))
+        self.assertNotIn("подлежит обязательной маркировке", build_contract_text(contract))
 
     def test_selecting_option_changes_text(self):
         from apps.partners.contracts import build_contract_text
 
         contract = self._contract()
-        answer = contract.answers.select_related("question").get(question__title__icontains="Порядок оплаты")
-        prepay = answer.question.options.get(label__icontains="Полная предоплата")
+        answer = contract.answers.select_related("question").get(question__title="Порядок оплаты")
+        prepay = answer.question.options.get(label__icontains="100% предоплата")
         answer.option, answer.body_snapshot = prepay, prepay.body
         answer.save()
         text = build_contract_text(contract)
-        self.assertIn("100% предварительную оплату", text)
+        self.assertIn("100 (сто) процентов стоимости партии", text)
 
     def test_skipped_question_excluded(self):
         from apps.partners.contracts import build_contract_text

@@ -20,6 +20,7 @@ urlpatterns = [
     path("contracts/<int:pk>/pdf/", views.contract_download, {"fmt": "pdf"}, name="contract_pdf"),
     path("contracts/<int:pk>/docx/", views.contract_download, {"fmt": "docx"}, name="contract_docx"),
     path("contracts/<int:pk>/delete/", views.contract_delete, name="contract_delete"),
+    path("contracts/bulk-delete/", views.contract_bulk_delete, name="contract_bulk_delete"),
 
     # Шаблоны договоров
     path("contract-templates/", views.ContractTemplateListView.as_view(), name="contract_template_list"),

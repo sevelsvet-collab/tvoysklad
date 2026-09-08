@@ -316,6 +316,19 @@ def contract_download(request, pk, fmt="pdf"):
 
 
 @require_POST
+def contract_bulk_delete(request):
+    """Удаление отмеченных договоров из списка."""
+    ids = request.POST.getlist("ids")
+    if not ids:
+        messages.warning(request, "Не выбрано ни одного договора")
+    else:
+        deleted = Contract.objects.filter(pk__in=ids).count()
+        Contract.objects.filter(pk__in=ids).delete()
+        messages.success(request, f"Удалено договоров: {deleted}")
+    return redirect("contract_list")
+
+
+@require_POST
 def contract_delete(request, pk):
     contract = get_object_or_404(Contract, pk=pk)
     counterparty_pk = contract.counterparty_id
