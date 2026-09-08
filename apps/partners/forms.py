@@ -66,6 +66,14 @@ class ContractForm(BootstrapFormMixin, forms.ModelForm):
             self.fields[name].input_formats = ["%Y-%m-%d"]
         self.fields["template"].queryset = ContractTemplate.objects.filter(is_active=True)
         self.fields["number"].help_text = "Оставьте пустым — присвоится автоматически"
+        # Без вида договора не из чего собрать текст, без организации — нет
+        # реквизитов и автонумерации, без даты договор недействителен.
+        for name in ("template", "organization", "date"):
+            self.fields[name].required = True
+        # Подписи в сводке ошибок должны совпадать с подписями полей на форме
+        for name, label in (("template", "Вид договора"), ("organization", "Наша организация"),
+                            ("counterparty", "Контрагент"), ("date", "Дата")):
+            self.fields[name].label = label
         if not self.instance.pk:
             org = Organization.get_default()
             if org:

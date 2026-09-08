@@ -7,7 +7,17 @@
 <form id="doc-action" method="post">{% csrf_token %}</form>
 <form method="post" enctype="multipart/form-data">
   {% csrf_token %}
-  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  {% if form.errors %}
+  <div class="alert alert-danger">
+    <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Договор не сохранён — заполните:</div>
+    <ul class="mb-0 ps-3">
+      {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+      {% for field in form %}{% if field.errors %}
+      <li><span class="fw-semibold">{{ field.label }}</span> — {{ field.errors|join:", "|lower }}</li>
+      {% endif %}{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
 
   <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
     <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
@@ -36,15 +46,20 @@
           {% if form.template.errors %}<div class="text-danger small">{{ form.template.errors.0 }}</div>{% endif %}
           <div class="form-text">Выберите — ниже появятся условия договора.</div>
         </div>
-        <div class="col-md-2"><label class="form-label">Дата</label>{{ form.date }}</div>
+        <div class="col-md-2">
+          <label class="form-label">Дата <span class="text-danger">*</span></label>{{ form.date }}
+          {% if form.date.errors %}<div class="text-danger small">{{ form.date.errors.0 }}</div>{% endif %}
+        </div>
         <div class="col-md-2"><label class="form-label">Номер</label>{{ form.number }}</div>
         <div class="col-md-4"><label class="form-label">Место подписания</label>{{ form.place }}</div>
 
-        <div class="col-md-5"><label class="form-label">Наша организация</label>{{ form.organization }}</div>
         <div class="col-md-5">
-          <label class="form-label">Контрагент</label>
+          <label class="form-label">Наша организация <span class="text-danger">*</span></label>{{ form.organization }}
+          {% if form.organization.errors %}<div class="text-danger small">{{ form.organization.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Контрагент <span class="text-danger">*</span></label>
           {% include "documents/_ac_field.html" with field=form.counterparty selected=form.instance.counterparty search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" edit_url_name="counterparty_edit" %}
-          {% if form.counterparty.errors %}<div class="text-danger small">{{ form.counterparty.errors.0 }}</div>{% endif %}
         </div>
         <div class="col-md-2"><label class="form-label">Сумма, ₽</label>{{ form.amount }}</div>
 

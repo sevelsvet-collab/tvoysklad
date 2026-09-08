@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 
 
@@ -230,10 +232,13 @@ class Contract(models.Model):
     delivery_place = models.CharField("Место поставки", max_length=512, blank=True)
     delivery_days = models.PositiveIntegerField("Срок поставки, дней", null=True, blank=True)
     penalty_rate = models.DecimalField(
-        "Неустойка, % в день", max_digits=5, decimal_places=3, null=True, blank=True, default=0.1,
+        # именно Decimal: float 0.1 не проходит проверку decimal_places
+        "Неустойка, % в день", max_digits=5, decimal_places=3, null=True, blank=True,
+        default=Decimal("0.1"),
     )
     penalty_cap_percent = models.DecimalField(
-        "Предельная неустойка, % от суммы", max_digits=5, decimal_places=2, null=True, blank=True, default=10,
+        "Предельная неустойка, % от суммы", max_digits=5, decimal_places=2,
+        null=True, blank=True, default=Decimal("10"),
     )
     claim_days = models.PositiveIntegerField("Срок ответа на претензию, дней", null=True, blank=True, default=10)
     warranty_months = models.PositiveIntegerField("Гарантия, месяцев", null=True, blank=True)

@@ -262,10 +262,38 @@ def fill_placeholders(text, values):
     return PLACEHOLDER_RE.sub(replace, text)
 
 
-def build_contract_text(contract):
-    """Собирает готовый договор: шапка + разделы из ответов + реквизиты.
+def _sections_of(contract, values):
+    """Разделы договора с проставленной нумерацией — общий источник
+    для текстового предпросмотра, PDF и Word."""
+    answers = (
+        contract.answers.select_related("question", "option")
+        .order_by("question__order", "id")
+    )
+    sections = []
+    current = None
+    for answer in answers:
+        text = answer.text.strip()
+        if not text:
+            continue  # «Пункт не предусмотрен»
+        title = answer.question.section or ""
+        if current is None or current["title"] != title:
+            current = {"number": len(sections) + 1, "title": title, "items": []}
+            sections.append(current)
+        for line in tidy(fill_placeholders(text, values)).split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            current["items"].append({
+                "number": f"{current['number']}.{len(current['items']) + 1}",
+                "text": line,
+            })
+    return sections
 
-    Разделы и пункты нумеруются автоматически — в формулировках номера
+
+def build_contract_text(contract):
+    """Собирает готовый договор обычным текстом — для предпросмотра в карточке.
+
+    Разделы и пункты нумеруются автоматически, в формулировках номера
     писать не нужно.
     """
     template = contract.template
@@ -285,39 +313,94 @@ def build_contract_text(contract):
         parts.append(tidy(fill_placeholders(template.intro, values)).strip())
         parts.append("")
 
-    # Разделы: группируем ответы по разделу, нумеруем сами
-    answers = (
-        contract.answers.select_related("question", "option")
-        .order_by("question__order", "id")
-    )
-    section_number = 0
-    current_section = None
-    item_number = 0
-    for answer in answers:
-        text = answer.text.strip()
-        if not text:
-            continue  # «Пункт не предусмотрен»
-        section = answer.question.section or ""
-        if section != current_section:
-            current_section = section
-            section_number += 1
-            item_number = 0
-            parts.append("")
-            parts.append(f"{section_number}. {section.upper()}" if section else f"{section_number}.")
-        for line in tidy(fill_placeholders(text, values)).split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-            item_number += 1
-            parts.append(f"{section_number}.{item_number}. {line}")
+    sections = _sections_of(contract, values)
+    for section in sections:
+        parts.append("")
+        parts.append(f"{section['number']}. {section['title'].upper()}"
+                     if section["title"] else f"{section['number']}.")
+        for item in section["items"]:
+            parts.append(f"{item['number']}. {item['text']}")
 
     if template.outro:
         parts.append("")
-        section_number += 1
-        parts.append(f"{section_number}. АДРЕСА, РЕКВИЗИТЫ И ПОДПИСИ СТОРОН")
+        parts.append(f"{len(sections) + 1}. АДРЕСА, РЕКВИЗИТЫ И ПОДПИСИ СТОРОН")
         parts.append(fill_placeholders(template.outro, values))
 
     return "\n".join(parts).strip() + "\n"
+
+
+# Как называются стороны в блоке подписей — по виду договора
+_PARTY_ROLES = {
+    "supply": ("ПОСТАВЩИК", "ПОКУПАТЕЛЬ"),
+    "sale": ("ПРОДАВЕЦ", "ПОКУПАТЕЛЬ"),
+    "service": ("ИСПОЛНИТЕЛЬ", "ЗАКАЗЧИК"),
+}
+
+# (подпись строки, плашка нашей стороны, плашка контрагента)
+_REQUISITE_ROWS = [
+    ("ИНН", "Наш ИНН", "ИНН контрагента"),
+    ("КПП", "Наш КПП", "КПП контрагента"),
+    ("ОГРН", "Наш ОГРН", "ОГРН контрагента"),
+    ("Адрес", "Наш адрес", "Адрес контрагента"),
+    ("Телефон", "Наш телефон", "Телефон контрагента"),
+    ("Банк", "Наш банк", "Банк контрагента"),
+    ("Р/с", "Наш расчётный счёт", "Расчётный счёт контрагента"),
+    ("БИК", "Наш БИК", "БИК контрагента"),
+    ("К/с", "Наш корр. счёт", "Корр. счёт контрагента"),
+]
+
+
+def _party(role, values, name_key, signer_key, side):
+    """Реквизиты одной стороны для таблицы подписей. Пустые строки не выводим."""
+    rows = []
+    for label, our_key, their_key in _REQUISITE_ROWS:
+        value = values.get(our_key if side == "our" else their_key, "")
+        if value:
+            rows.append((label, value))
+    return {
+        "role": role,
+        "name": values.get(name_key, ""),
+        "rows": rows,
+        "signer": values.get(signer_key, ""),
+    }
+
+
+def build_contract_blocks(contract):
+    """Структурированный договор для PDF и Word: заголовок, преамбула,
+    пронумерованные разделы и таблица реквизитов."""
+    template = contract.template
+    if not template:
+        return None
+
+    values = build_values(contract)
+    intro = [
+        tidy(fill_placeholders(block, values)).strip().replace("\n", " ")
+        for block in (template.intro or "").split("\n\n") if block.strip()
+    ]
+    sections = _sections_of(contract, values)
+
+    roles = _PARTY_ROLES.get(template.kind)
+    parties = None
+    outro_text = ""
+    if roles:
+        parties = (
+            _party(roles[0], values, "Наша организация", "Наш руководитель", "our"),
+            _party(roles[1], values, "Контрагент", "Руководитель контрагента", "their"),
+        )
+    elif template.outro:
+        outro_text = fill_placeholders(template.outro, values)
+
+    return {
+        "title": template.title or (template.get_kind_display() if template.kind else "ДОГОВОР"),
+        "number": values["Номер договора"],
+        "place": values["Место подписания"],
+        "date": values["Дата договора"],
+        "intro": intro,
+        "sections": sections,
+        "requisites_number": len(sections) + 1,
+        "parties": parties,
+        "outro_text": outro_text,
+    }
 
 
 def default_option(question):

@@ -1,5 +1,71 @@
 {% extends "documents/print/base_print.html" %}
+{% comment %}
+Печатная форма договора: заголовок по центру, разделы по центру жирным,
+пункты с выключкой по ширине и абзацным отступом, реквизиты — в две колонки.
+{% endcomment %}
 {% block body %}
-{# Договор — обычный текст: сохраняем разметку исходника моноширинной вёрсткой абзацев #}
-<div style="font-size:10.5pt; line-height:1.45; white-space:pre-wrap;">{{ body }}</div>
+<style>
+  body { font-family: 'Times New Roman', 'DejaVu Serif', serif; font-size: 11pt; }
+  .doc-title { font-size: 13pt; font-weight: bold; text-align: center; margin-bottom: 14pt; }
+  .doc-meta { width: 100%; margin-bottom: 12pt; font-size: 11pt; }
+  .doc-meta td { padding: 0; }
+  .doc-intro { text-align: justify; text-indent: 1.25cm; line-height: 1.35; margin-bottom: 6pt; }
+  .sec { margin-top: 12pt; page-break-after: avoid; }
+  .sec-title { text-align: center; font-weight: bold; text-transform: uppercase; margin-bottom: 4pt; }
+  .item { text-align: justify; line-height: 1.35; margin-bottom: 3pt; padding-left: 1.25cm; text-indent: -1.25cm; }
+  .item .no { font-weight: normal; }
+  .req { width: 100%; margin-top: 10pt; page-break-inside: avoid; }
+  .req td { width: 50%; vertical-align: top; padding-right: 10pt; line-height: 1.3; }
+  .req .role { font-weight: bold; text-transform: uppercase; }
+  .req .name { font-weight: bold; }
+  .sign { margin-top: 22pt; }
+  .sign .line { display: inline-block; border-bottom: 0.75pt solid #000; width: 45%; }
+  .sign .mp { margin-top: 6pt; }
+  pre.outro { white-space: pre-wrap; font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt; }
+</style>
+
+{% if blocks %}
+<div class="doc-title">{{ blocks.title }} № {{ blocks.number }}</div>
+
+<table class="doc-meta"><tr>
+  <td>г. {{ blocks.place }}</td>
+  <td class="right">{{ blocks.date }}</td>
+</tr></table>
+
+{% for paragraph in blocks.intro %}<div class="doc-intro">{{ paragraph }}</div>{% endfor %}
+
+{% for section in blocks.sections %}
+<div class="sec"><div class="sec-title">{{ section.number }}. {{ section.title }}</div></div>
+{% for item in section.items %}
+<div class="item"><span class="no">{{ item.number }}.</span> {{ item.text }}</div>
+{% endfor %}
+{% endfor %}
+
+<div class="sec"><div class="sec-title">{{ blocks.requisites_number }}. Адреса, реквизиты и подписи сторон</div></div>
+{% if blocks.parties %}
+<table class="req">
+  <tr>
+    {% for party in blocks.parties %}
+    <td>
+      <div class="role">{{ party.role }}</div>
+      <div class="name">{{ party.name }}</div>
+      {% for label, value in party.rows %}<div>{{ label }}: {{ value }}</div>{% endfor %}
+    </td>
+    {% endfor %}
+  </tr>
+  {# подписи отдельной строкой — иначе съезжают из-за разной длины реквизитов #}
+  <tr>
+    {% for party in blocks.parties %}
+    <td class="sign">
+      <div class="line"></div>
+      <div>/ {{ party.signer|default:"________________" }} /</div>
+      <div class="mp">М.П.</div>
+    </td>
+    {% endfor %}
+  </tr>
+</table>
+{% else %}
+<pre class="outro">{{ blocks.outro_text }}</pre>
+{% endif %}
+{% endif %}
 {% endblock %}

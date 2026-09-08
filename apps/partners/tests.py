@@ -634,6 +634,54 @@ class ContractTests(TestCase):
         text = build_contract_text(self._sale_contract(amount=Decimal("450000")))
         self.assertIn("450 000,00", text)
 
+    def test_required_fields_named_in_error_summary(self):
+        """Пустая форма прямо говорит, каких полей не хватает."""
+        resp = self.client.post(reverse("contract_create"), {})
+        self.assertEqual(resp.status_code, 200)
+        errors = resp.context["form"].errors
+        self.assertEqual(set(errors), {"template", "organization", "date", "counterparty"})
+        self.assertContains(resp, "Договор не сохранён")
+        # в сводке — понятные подписи полей, а не имена из модели
+        for label in ("Контрагент", "Наша организация", "Дата", "Вид договора"):
+            self.assertContains(resp, f'<span class="fw-semibold">{label}</span>', html=False)
+        self.assertNotContains(resp, "Counterparty")
+
+    def test_field_error_not_duplicated(self):
+        """Раньше «Обязательное поле» под контрагентом печаталось дважды."""
+        resp = self.client.post(reverse("contract_create"), {})
+        # ровно по одному сообщению на каждое из четырёх обязательных полей
+        self.assertEqual(resp.content.decode().count(
+            '<div class="text-danger small">Обязательное поле.</div>'), 4)
+
+    def test_pdf_blocks_structured(self):
+        from apps.partners.contracts import build_contract_blocks
+
+        blocks = build_contract_blocks(self._sale_contract())
+        self.assertEqual(blocks["title"], "ДОГОВОР КУПЛИ-ПРОДАЖИ ТОВАРА")
+        self.assertTrue(blocks["intro"])
+        self.assertEqual(blocks["sections"][0]["number"], 1)
+        self.assertEqual(blocks["sections"][0]["items"][0]["number"], "1.1")
+        left, right = blocks["parties"]
+        self.assertEqual((left["role"], right["role"]), ("ПРОДАВЕЦ", "ПОКУПАТЕЛЬ"))
+        self.assertIn(("ИНН", "7712345678"), left["rows"])
+        self.assertEqual(left["signer"], "Иванов И.И.")
+
+    def test_docx_has_headings_and_requisites_table(self):
+        from docx import Document
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+        from apps.partners.export import contract_docx
+
+        document = Document(io.BytesIO(contract_docx(self._sale_contract())))
+        first = document.paragraphs[0]
+        self.assertIn("ДОГОВОР КУПЛИ-ПРОДАЖИ ТОВАРА", first.text)
+        self.assertEqual(first.alignment, WD_ALIGN_PARAGRAPH.CENTER)
+        self.assertTrue(first.runs[0].bold)
+        table = document.tables[0]
+        self.assertEqual((len(table.rows), len(table.columns)), (2, 2))
+        self.assertIn("ПРОДАВЕЦ", table.rows[0].cells[0].text)
+        self.assertIn("М.П.", table.rows[1].cells[0].text)
+
     def test_contract_shown_in_counterparty_documents(self):
         from apps.partners.documents import counterparty_documents
 
