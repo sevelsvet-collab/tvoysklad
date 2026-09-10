@@ -17,6 +17,7 @@
        data-ac-create-page="{% url 'product_create' %}"
        data-edit-base="{% url 'product_edit' 0 %}"
        data-product-vat="{% if form.instance.product_id %}{{ form.instance.product.vat_rate }}{% endif %}"
+       data-track-serials="{% if form.instance.product_id and form.instance.product.track_serials %}1{% endif %}"
        data-ac-create-label="Создать новый товар"
        data-ac-params='{"price": "{{ price_source|default:"purchase" }}"}'
        data-ac-dyn='{"warehouse": "[name={{ warehouse_field|default:"warehouse" }}]"}'>
@@ -32,6 +33,13 @@
            placeholder="Добавить позицию — наименование, код, штрихкод или артикул"
            value="{% if form.instance.product_id %}{{ form.instance.product.name }}{% if form.instance.product.article %} ({{ form.instance.product.article }}){% endif %}{% endif %}">
   </div>
+  {# Серийные номера (static/js/serials.js): кнопка видна у товаров с учётом по номерам #}
+  <div class="line-serial-wrap d-none">
+    <button type="button" class="btn btn-link btn-sm p-0 line-serial-btn" title="Серийные номера">
+      <i class="bi bi-upc-scan me-1"></i><span class="line-serial-label">Серийные номера</span>
+    </button>
+  </div>
+  <textarea name="{{ form.serial_numbers.html_name }}" class="d-none line-serials">{{ form.serial_numbers.value|default_if_none:'' }}</textarea>
 </td>
 <td class="text-nowrap" style="width:118px;">
   <div class="d-flex align-items-center gap-1">

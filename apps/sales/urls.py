@@ -26,4 +26,6 @@ urlpatterns = [
     path("sales/returns/<int:pk>/post/", views.customer_return_post, name="customer_return_post"),
     path("sales/returns/<int:pk>/unpost/", views.customer_return_unpost, name="customer_return_unpost"),
     path("sales/returns/<int:pk>/delete/", views.customer_return_delete, name="customer_return_delete"),
+    path("sales/shipments/bulk-delete/", views.shipment_bulk_delete, name="shipment_bulk_delete"),
+    path("sales/returns/bulk-delete/", views.customer_return_bulk_delete, name="customer_return_bulk_delete"),
 ]

@@ -7,7 +7,9 @@ from django.views.generic import CreateView, ListView, UpdateView
 
 from apps.core import roles
 from apps.core.constants import DOC_POSTED
+from apps.core.bulk import bulk_delete_view
 from apps.core.document_edit import LineDocumentMixin
+from apps.core.listing import FilteredListMixin, delete_action, document_filters
 from apps.core.permissions import RoleRequiredMixin
 from apps.partners.models import Counterparty
 
@@ -22,21 +24,17 @@ from .models import Receipt, SupplierReturn, SupplierReturnLine
 EDIT_ROLES = [roles.ROLE_ADMIN, roles.ROLE_STOREKEEPER, roles.ROLE_MANAGER]
 
 
-class ReceiptListView(RoleRequiredMixin, ListView):
+class ReceiptListView(FilteredListMixin, RoleRequiredMixin, ListView):
     model = Receipt
     template_name = "purchases/receipt_list.html"
     context_object_name = "receipts"
-    paginate_by = 50
+    search_fields = ("number", "supplier__name", "supplier_invoice", "comment")
+    search_placeholder = "Номер, поставщик, счёт поставщика"
+    list_filters = document_filters("supplier", "Поставщик")
+    bulk_actions = [delete_action("receipt_bulk_delete", "приёмки")]
 
     def get_queryset(self):
-        qs = Receipt.objects.select_related("supplier", "warehouse", "organization")
-        q = self.request.GET.get("q", "").strip()
-        status = self.request.GET.get("status", "")
-        if q:
-            qs = qs.filter(Q(number__icontains=q) | Q(supplier__name__icontains=q) | Q(supplier_invoice__icontains=q))
-        if status:
-            qs = qs.filter(status=status)
-        return qs
+        return self.filter_queryset(Receipt.objects.select_related("supplier", "warehouse", "organization"))
 
 
 class ReceiptCreateView(RoleRequiredMixin, LineDocumentMixin, CreateView):
@@ -98,21 +96,18 @@ def receipt_delete(request, pk):
 
 # ---------- Возвраты поставщикам ----------
 
-class SupplierReturnListView(RoleRequiredMixin, ListView):
+class SupplierReturnListView(FilteredListMixin, RoleRequiredMixin, ListView):
     model = SupplierReturn
     template_name = "purchases/supplier_return_list.html"
     context_object_name = "returns"
-    paginate_by = 50
+    search_fields = ("number", "supplier__name", "comment")
+    search_placeholder = "Номер, поставщик или комментарий"
+    list_filters = document_filters("supplier", "Поставщик")
+    bulk_actions = [delete_action("supplier_return_bulk_delete", "возвраты")]
 
     def get_queryset(self):
         qs = SupplierReturn.objects.select_related("supplier", "warehouse", "organization").prefetch_related("lines")
-        status = self.request.GET.get("status", "")
-        q = self.request.GET.get("q", "").strip()
-        if q:
-            qs = qs.filter(Q(number__icontains=q) | Q(supplier__name__icontains=q))
-        if status:
-            qs = qs.filter(status=status)
-        return qs
+        return self.filter_queryset(qs)
 
 
 class SupplierReturnCreateView(RoleRequiredMixin, LineDocumentMixin, CreateView):
@@ -187,3 +182,9 @@ def receipt_to_return(request, pk):
         )
     messages.success(request, f"Создан возврат поставщику № {doc.number} — проверьте и проведите")
     return redirect("supplier_return_edit", pk=doc.pk)
+
+
+# ---------- Удаление отмеченных в списках ----------
+
+receipt_bulk_delete = bulk_delete_view(Receipt, "receipt_list", EDIT_ROLES, "приёмок")
+supplier_return_bulk_delete = bulk_delete_view(SupplierReturn, "supplier_return_list", EDIT_ROLES, "возвратов")

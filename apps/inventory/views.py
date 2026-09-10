@@ -9,8 +9,13 @@ from django.views.generic import CreateView, ListView, UpdateView
 
 from apps.catalog.models import ProductGroup
 from apps.core import roles
-from apps.core.constants import DOC_POSTED
+from apps.core.constants import DOC_POSTED, DOC_STATUS_CHOICES
+from apps.core.bulk import bulk_delete_view
 from apps.core.document_edit import LineDocumentMixin
+from apps.core.listing import (
+    ChoiceFilter, FilteredListMixin, PeriodFilter, delete_action, document_filters,
+    organizations, warehouses,
+)
 from apps.core.models import Warehouse
 from apps.core.permissions import RoleRequiredMixin
 
@@ -70,19 +75,24 @@ class BalanceListView(RoleRequiredMixin, ListView):
 
 # ---------- Перемещения ----------
 
-class TransferListView(RoleRequiredMixin, ListView):
+class TransferListView(FilteredListMixin, RoleRequiredMixin, ListView):
     allowed_roles = VIEW_ROLES
     model = Transfer
     template_name = "inventory/transfer_list.html"
     context_object_name = "transfers"
-    paginate_by = 50
+    search_fields = ("number", "comment")
+    search_placeholder = "Номер или комментарий"
+    list_filters = [
+        PeriodFilter(),
+        ChoiceFilter("status", "Статус", choices=DOC_STATUS_CHOICES),
+        ChoiceFilter("organization", "Организация", "organization_id", organizations),
+        ChoiceFilter("warehouse_from", "Со склада", "warehouse_from_id", warehouses),
+        ChoiceFilter("warehouse_to", "На склад", "warehouse_to_id", warehouses),
+    ]
+    bulk_actions = [delete_action("transfer_bulk_delete", "перемещения")]
 
     def get_queryset(self):
-        qs = Transfer.objects.select_related("warehouse_from", "warehouse_to", "organization")
-        status = self.request.GET.get("status", "")
-        if status:
-            qs = qs.filter(status=status)
-        return qs
+        return self.filter_queryset(Transfer.objects.select_related("warehouse_from", "warehouse_to", "organization"))
 
 
 class TransferCreateView(RoleRequiredMixin, LineDocumentMixin, CreateView):
@@ -144,12 +154,15 @@ def transfer_delete(request, pk):
 
 # ---------- Оприходования / Списания ----------
 
-class AdjustmentListView(RoleRequiredMixin, ListView):
+class AdjustmentListView(FilteredListMixin, RoleRequiredMixin, ListView):
     allowed_roles = VIEW_ROLES
     model = StockAdjustment
     template_name = "inventory/adjustment_list.html"
     context_object_name = "adjustments"
-    paginate_by = 50
+    search_fields = ("number", "reason", "comment")
+    search_placeholder = "Номер, причина или комментарий"
+    list_filters = document_filters()
+    bulk_actions = [delete_action("adjustment_bulk_delete", "документы")]
     kind = None  # приходит из URL (<str:kind>)
 
     def setup(self, request, *args, **kwargs):
@@ -159,10 +172,7 @@ class AdjustmentListView(RoleRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = StockAdjustment.objects.filter(kind=self.kind).select_related("warehouse", "organization")
-        status = self.request.GET.get("status", "")
-        if status:
-            qs = qs.filter(status=status)
-        return qs
+        return self.filter_queryset(qs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -238,3 +248,9 @@ def adjustment_delete(request, pk):
     adj.delete()
     messages.info(request, "Документ удалён")
     return redirect("adjustment_list", kind=kind)
+
+
+# ---------- Удаление отмеченных в списках ----------
+
+transfer_bulk_delete = bulk_delete_view(Transfer, "transfer_list", EDIT_ROLES, "перемещений")
+adjustment_bulk_delete = bulk_delete_view(StockAdjustment, "adjustment_list_income", EDIT_ROLES, "документов")

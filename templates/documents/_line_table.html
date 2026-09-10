@@ -1,10 +1,12 @@
-{% comment %}Табличная часть документа. Ожидает: formset, show_price, show_vat, show_discount, show_stock (по умолч. True), price_source, warehouse_field.{% endcomment %}
+{% comment %}Табличная часть документа. serial_mode: enter (приход) / pick (расход) / pick-optional (счёт). Ожидает: formset, show_price, show_vat, show_discount, show_stock (по умолч. True), price_source, warehouse_field.{% endcomment %}
 <div class="doc-lines{% if not no_outer_card %} card{% endif %}"
      data-warehouse-field="{{ warehouse_field|default:'warehouse' }}"
      data-stock-url="{% url 'api_product_stock' %}"
      data-default-vat="{{ default_vat_rate|default:'20' }}"
      data-org-field="{{ org_field|default:'organization' }}"
-     data-org-vat="{{ org_vat_json|default:'{}' }}">
+     data-org-vat="{{ org_vat_json|default:'{}' }}"
+     data-serial-mode="{{ serial_mode|default:'' }}"
+     data-serials-url="{% url 'api_serials_available' %}">
   <div class="card-body p-0">
     {{ formset.management_form }}
     {% if formset.non_form_errors %}<div class="alert alert-danger m-2">{{ formset.non_form_errors }}</div>{% endif %}

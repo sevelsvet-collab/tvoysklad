@@ -58,6 +58,10 @@ class Product(models.Model):
     barcode = models.CharField("Штрихкод", max_length=64, blank=True, db_index=True)
     unit = models.ForeignKey(Unit, on_delete=models.PROTECT, verbose_name="Ед. изм.")
     vat_rate = models.CharField("Ставка НДС", max_length=8, choices=VAT_CHOICES, default=VAT_20)
+    track_serials = models.BooleanField(
+        "Учёт по серийным номерам", default=False,
+        help_text="При приёмке, отгрузке и других складских операциях нужно указывать серийные номера",
+    )
 
     purchase_price = models.DecimalField("Закупочная цена", max_digits=15, decimal_places=2, default=0)
     sale_price = models.DecimalField("Цена продажи", max_digits=15, decimal_places=2, default=0)

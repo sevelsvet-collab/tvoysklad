@@ -58,7 +58,7 @@ class InvoiceForm(DocumentHeaderMixin, _HeaderDefaultsMixin, BootstrapFormMixin,
 class InvoiceLineForm(SkipEmptyLineMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = InvoiceLine
-        fields = ["product", "quantity", "price", "discount", "vat_rate"]
+        fields = ["product", "quantity", "serial_numbers", "price", "discount", "vat_rate"]
 
 
 InvoiceLineFormSet = inlineformset_factory(
@@ -84,7 +84,7 @@ class ShipmentForm(DocumentHeaderMixin, _HeaderDefaultsMixin, BootstrapFormMixin
 class ShipmentLineForm(SkipEmptyLineMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = ShipmentLine
-        fields = ["product", "quantity", "price", "discount", "vat_rate"]
+        fields = ["product", "quantity", "serial_numbers", "price", "discount", "vat_rate"]
 
 
 ShipmentLineFormSet = inlineformset_factory(
@@ -110,7 +110,7 @@ class CustomerReturnForm(DocumentHeaderMixin, _HeaderDefaultsMixin, BootstrapFor
 class CustomerReturnLineForm(SkipEmptyLineMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = CustomerReturnLine
-        fields = ["product", "quantity", "price", "discount", "vat_rate"]
+        fields = ["product", "quantity", "serial_numbers", "price", "discount", "vat_rate"]
 
 
 CustomerReturnLineFormSet = inlineformset_factory(

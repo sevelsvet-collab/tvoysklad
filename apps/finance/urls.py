@@ -46,4 +46,5 @@ urlpatterns = [
          views.settlement_correction_unpost, name="settlement_correction_unpost"),
     path("money/corrections/settlement/<int:pk>/delete/",
          views.settlement_correction_delete, name="settlement_correction_delete"),
+    path("money/payments-bulk-delete/", views.payment_bulk_delete, name="payment_bulk_delete"),
 ]

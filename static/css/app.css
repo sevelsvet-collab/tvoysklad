@@ -172,3 +172,16 @@ body { background: #fff; }
 .doc-heading .doc-number { width: 8.5rem; }
 .doc-heading .doc-date { width: 9.5rem; }
 .doc-heading .doc-time { width: 6.5rem; }
+
+/* ---------- Списки (как в МойСклад) ---------- */
+.list-toolbar .list-search { max-width: 320px; }
+.list-toolbar .list-bulk-count { min-width: 2.4rem; pointer-events: none; }
+.list-toolbar .list-bulk-count.active { background: var(--ms-blue); border-color: var(--ms-blue); color: #fff; }
+.filter-panel { background: #eef1f4; border: 1px solid #dce2e8; border-radius: .4rem; padding: .75rem .9rem; }
+.filter-panel .form-label { color: #495057; }
+.filter-panel .period-links a { font-size: .75rem; text-decoration: none; }
+.filter-panel .period-links a:hover { text-decoration: underline; }
+.list-table tr[data-url] { cursor: pointer; }
+.list-table .list-check-col { width: 34px; }
+.list-footer .per-page-select { width: auto; }
+

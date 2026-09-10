@@ -117,6 +117,7 @@ class TransferLine(models.Model):
     transfer = models.ForeignKey(Transfer, on_delete=models.CASCADE, related_name="lines")
     product = models.ForeignKey("catalog.Product", on_delete=models.PROTECT, verbose_name="Товар")
     quantity = models.DecimalField("Количество", max_digits=15, decimal_places=3, default=1)
+    serial_numbers = models.TextField("Серийные номера", blank=True, help_text="По одному номеру в строке")
 
     class Meta:
         verbose_name = "Строка перемещения"
@@ -185,6 +186,7 @@ class AdjustmentLine(models.Model):
     adjustment = models.ForeignKey(StockAdjustment, on_delete=models.CASCADE, related_name="lines")
     product = models.ForeignKey("catalog.Product", on_delete=models.PROTECT, verbose_name="Товар")
     quantity = models.DecimalField("Количество", max_digits=15, decimal_places=3, default=1)
+    serial_numbers = models.TextField("Серийные номера", blank=True, help_text="По одному номеру в строке")
     price = models.DecimalField("Цена (для оприходования)", max_digits=15, decimal_places=2, default=0)
 
     class Meta:
@@ -193,3 +195,67 @@ class AdjustmentLine(models.Model):
 
     def __str__(self):
         return f"{self.product} × {self.quantity}"
+
+
+class SerialNumber(models.Model):
+    """Серийный номер конкретной единицы товара и где она сейчас.
+
+    Состояние пересчитывается из журнала SerialMovement (как остатки из
+    StockMovement): последний приход — лежит на складе, последний расход —
+    продан, возвращён поставщику или списан.
+    """
+
+    STATUS_IN_STOCK = "in_stock"
+    STATUS_SOLD = "sold"
+    STATUS_RETURNED = "returned"
+    STATUS_WRITTEN_OFF = "written_off"
+    STATUS_CHOICES = [
+        (STATUS_IN_STOCK, "На складе"),
+        (STATUS_SOLD, "Продан"),
+        (STATUS_RETURNED, "Возвращён поставщику"),
+        (STATUS_WRITTEN_OFF, "Списан"),
+    ]
+
+    product = models.ForeignKey(
+        "catalog.Product", on_delete=models.CASCADE, related_name="serials", verbose_name="Товар",
+    )
+    number = models.CharField("Серийный номер", max_length=100, db_index=True)
+    warehouse = models.ForeignKey(
+        "core.Warehouse", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="serials", verbose_name="Склад",
+    )
+    status = models.CharField("Состояние", max_length=16, choices=STATUS_CHOICES, default=STATUS_IN_STOCK)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Серийный номер"
+        verbose_name_plural = "Серийные номера"
+        ordering = ["number"]
+        constraints = [
+            models.UniqueConstraint(fields=["product", "number"], name="uniq_product_serial"),
+        ]
+
+    def __str__(self):
+        return f"{self.product} — {self.number}"
+
+
+class SerialMovement(models.Model):
+    """Движение серийного номера: какой документ, когда, на какой склад (±1)."""
+
+    serial = models.ForeignKey(SerialNumber, on_delete=models.CASCADE, related_name="movements")
+    doc_type = models.CharField("Документ", max_length=32)  # model_name документа или «serial_stock»
+    doc_id = models.PositiveIntegerField("ID документа")
+    doc_number = models.CharField("Номер документа", max_length=32, blank=True)
+    date = models.DateField("Дата документа")
+    warehouse = models.ForeignKey(
+        "core.Warehouse", on_delete=models.PROTECT, related_name="serial_movements", verbose_name="Склад",
+    )
+    quantity = models.SmallIntegerField("Приход (+1) / расход (−1)")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Движение серийного номера"
+        verbose_name_plural = "Движения серийных номеров"
+        ordering = ["date", "id"]
+        indexes = [models.Index(fields=["doc_type", "doc_id"])]
+

@@ -10,7 +10,11 @@ from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, ListView, UpdateView
 
 from apps.core import roles, submit_once
-from apps.core.constants import DOC_POSTED
+from apps.core.constants import DOC_POSTED, DOC_STATUS_CHOICES
+from apps.core.bulk import bulk_delete_view
+from apps.core.listing import (
+    ChoiceFilter, FilteredListMixin, PeriodFilter, TextFilter, delete_action, organizations,
+)
 from apps.core.permissions import RoleRequiredMixin
 from apps.partners.models import Counterparty
 from apps.purchases.models import Receipt
@@ -55,22 +59,29 @@ class AccountUpdateView(RoleRequiredMixin, UpdateView):
 
 # ---------- Платежи ----------
 
-class PaymentListView(RoleRequiredMixin, ListView):
+def _accounts():
+    return Account.objects.filter(is_active=True).values_list("pk", "name")
+
+
+class PaymentListView(FilteredListMixin, RoleRequiredMixin, ListView):
     allowed_roles = MONEY_ROLES
     model = Payment
     template_name = "finance/payment_list.html"
     context_object_name = "payments"
-    paginate_by = 50
+    search_fields = ("number", "counterparty__name", "purpose")
+    search_placeholder = "Номер, контрагент, назначение"
+    list_filters = [
+        PeriodFilter(),
+        ChoiceFilter("kind", "Вид", choices=Payment.KIND_CHOICES),
+        TextFilter("partner", "Контрагент", "counterparty__name", placeholder="Наименование"),
+        ChoiceFilter("status", "Статус", choices=DOC_STATUS_CHOICES),
+        ChoiceFilter("organization", "Организация", "organization_id", organizations),
+        ChoiceFilter("account", "Счёт/касса", "account_id", _accounts),
+    ]
+    bulk_actions = [delete_action("payment_bulk_delete", "платежи")]
 
     def get_queryset(self):
-        qs = Payment.objects.select_related("counterparty", "account", "organization")
-        kind = self.request.GET.get("kind", "")
-        q = self.request.GET.get("q", "").strip()
-        if kind:
-            qs = qs.filter(kind=kind)
-        if q:
-            qs = qs.filter(Q(number__icontains=q) | Q(counterparty__name__icontains=q) | Q(purpose__icontains=q))
-        return qs
+        return self.filter_queryset(Payment.objects.select_related("counterparty", "account", "organization"))
 
 
 class PaymentEditBase(RoleRequiredMixin):
@@ -418,3 +429,8 @@ def settlement_correction_delete(request, pk):
     get_object_or_404(SettlementCorrection, pk=pk).delete()
     messages.info(request, "Корректировка удалена")
     return redirect("correction_list")
+
+
+# ---------- Удаление отмеченных в списках ----------
+
+payment_bulk_delete = bulk_delete_view(Payment, "payment_list", MONEY_ROLES, "платежей")

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Серийные номера — Склад{% endblock %}
+{% block page_title %}Серийные номера{% endblock %}
+{% block content %}
+<form method="get" class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+  {% if product_filter %}<input type="hidden" name="product" value="{{ product_filter.pk }}">{% endif %}
+  <input type="search" name="q" class="form-control form-control-sm" style="max-width:320px;"
+         placeholder="Серийный номер или товар" value="{{ request.GET.q|default:'' }}" autofocus>
+  <select name="status" class="form-select form-select-sm" style="max-width:220px;" onchange="this.form.submit()">
+    <option value="">Все состояния</option>
+    {% for value, label in statuses %}<option value="{{ value }}"{% if request.GET.status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-sm btn-outline-secondary">Найти</button>
+  {% if product_filter %}
+    <span class="badge text-bg-light border">Товар: {{ product_filter.name }}
+      <a href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}{% endif %}" class="ms-1 text-decoration-none">×</a></span>
+  {% endif %}
+</form>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 small">
+      <thead class="table-light">
+        <tr><th>Серийный номер</th><th>Товар</th><th>Состояние</th><th>Поступил</th><th>Выбыл</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="fw-semibold"><a href="{% url 'report_serial_detail' r.serial.pk %}">{{ r.serial.number }}</a></td>
+          <td>{{ r.serial.product.name }}</td>
+          <td>
+            {% if r.serial.status == "in_stock" %}<span class="badge text-bg-success">{{ r.serial.warehouse }}</span>
+            {% else %}<span class="badge text-bg-secondary">{{ r.serial.get_status_display }}</span>{% endif %}
+          </td>
+          <td>{% if r.came %}{% include "reports/_serial_move.html" with row=r.came %}{% else %}—{% endif %}</td>
+          <td>{% if r.left %}{% include "reports/_serial_move.html" with row=r.left %}{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">Серийных номеров не найдено. Включите учёт в карточке товара и проведите приёмку с номерами.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "partials/_pagination.html" %}
+{% endblock %}

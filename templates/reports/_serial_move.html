@@ -1,0 +1,4 @@
+{% comment %}Движение номера: документ-ссылка, дата, контрагент. Ожидает row (из serial_views.describe).{% endcomment %}
+{% if row.url %}<a href="{{ row.url }}">{{ row.label }} № {{ row.m.doc_number }}</a>{% else %}{{ row.label }}{% if row.m.doc_number %} № {{ row.m.doc_number }}{% endif %}{% endif %}
+<span class="text-muted">от {{ row.m.date|date:"d.m.Y" }}</span>
+{% if row.partner %}<div class="text-muted">{{ row.partner.name }}</div>{% endif %}

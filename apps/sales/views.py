@@ -9,7 +9,9 @@ from django.views.generic import CreateView, ListView, UpdateView
 
 from apps.core import roles
 from apps.core.constants import DOC_POSTED
+from apps.core.bulk import bulk_delete_view
 from apps.core.document_edit import LineDocumentMixin
+from apps.core.listing import FilteredListMixin, delete_action, document_filters
 from apps.core.permissions import RoleRequiredMixin
 
 from .forms import (
@@ -28,26 +30,19 @@ SHIP_ROLES = [roles.ROLE_ADMIN, roles.ROLE_MANAGER, roles.ROLE_STOREKEEPER]
 
 # ---------- Счета покупателям ----------
 
-class InvoiceListView(RoleRequiredMixin, ListView):
+class InvoiceListView(FilteredListMixin, RoleRequiredMixin, ListView):
     model = Invoice
     template_name = "sales/invoice_list.html"
     context_object_name = "invoices"
-
-    def get_paginate_by(self, qs):
-        try:
-            return int(self.request.GET.get("per_page", 50))
-        except (ValueError, TypeError):
-            return 50
+    search_fields = ("number", "customer__name", "comment")
+    search_placeholder = "Номер, покупатель или комментарий"
+    list_filters = document_filters("customer", "Покупатель", status_choices=Invoice.STATUS_CHOICES)
+    bulk_actions = [delete_action("invoice_bulk_delete", "счета")]
 
     def get_queryset(self):
-        qs = Invoice.objects.select_related("customer", "warehouse", "organization").prefetch_related("lines", "shipments__lines")
-        q = self.request.GET.get("q", "").strip()
-        status = self.request.GET.get("status", "")
-        if q:
-            qs = qs.filter(Q(number__icontains=q) | Q(customer__name__icontains=q))
-        if status:
-            qs = qs.filter(status=status)
-        return qs
+        qs = Invoice.objects.select_related("customer", "warehouse", "organization").prefetch_related(
+            "lines", "shipments__lines")
+        return self.filter_queryset(qs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -66,11 +61,6 @@ class InvoiceListView(RoleRequiredMixin, ListView):
                 inv.row_shipped_pct = int(min(100, float(shipped / total * 100)))
             else:
                 inv.row_paid_pct = inv.row_shipped_pct = 0
-        ctx["perpage_choices"] = [25, 50, 100]
-        try:
-            ctx["current_per_page"] = int(self.request.GET.get("per_page", 50))
-        except (ValueError, TypeError):
-            ctx["current_per_page"] = 50
         return ctx
 
 
@@ -148,7 +138,7 @@ def invoice_to_shipment(request, pk):
     for line in invoice.lines.all():
         ShipmentLine.objects.create(
             shipment=shipment, product=line.product, quantity=line.quantity,
-            price=line.price, vat_rate=line.vat_rate,
+            price=line.price, vat_rate=line.vat_rate, serial_numbers=line.serial_numbers,
         )
     messages.success(request, f"Создана отгрузка № {shipment.number} — проверьте и проведите")
     return redirect("shipment_edit", pk=shipment.pk)
@@ -156,21 +146,18 @@ def invoice_to_shipment(request, pk):
 
 # ---------- Отгрузки ----------
 
-class ShipmentListView(RoleRequiredMixin, ListView):
+class ShipmentListView(FilteredListMixin, RoleRequiredMixin, ListView):
     model = Shipment
     template_name = "sales/shipment_list.html"
     context_object_name = "shipments"
-    paginate_by = 50
+    search_fields = ("number", "customer__name", "comment")
+    search_placeholder = "Номер, покупатель или комментарий"
+    list_filters = document_filters("customer", "Покупатель")
+    bulk_actions = [delete_action("shipment_bulk_delete", "отгрузки")]
 
     def get_queryset(self):
         qs = Shipment.objects.select_related("customer", "warehouse", "organization").prefetch_related("lines")
-        q = self.request.GET.get("q", "").strip()
-        status = self.request.GET.get("status", "")
-        if q:
-            qs = qs.filter(Q(number__icontains=q) | Q(customer__name__icontains=q))
-        if status:
-            qs = qs.filter(status=status)
-        return qs
+        return self.filter_queryset(qs)
 
 
 class ShipmentCreateView(RoleRequiredMixin, LineDocumentMixin, CreateView):
@@ -232,21 +219,18 @@ def shipment_delete(request, pk):
 
 # ---------- Возвраты покупателей ----------
 
-class CustomerReturnListView(RoleRequiredMixin, ListView):
+class CustomerReturnListView(FilteredListMixin, RoleRequiredMixin, ListView):
     model = CustomerReturn
     template_name = "sales/customer_return_list.html"
     context_object_name = "returns"
-    paginate_by = 50
+    search_fields = ("number", "customer__name", "comment")
+    search_placeholder = "Номер, покупатель или комментарий"
+    list_filters = document_filters("customer", "Покупатель")
+    bulk_actions = [delete_action("customer_return_bulk_delete", "возвраты")]
 
     def get_queryset(self):
         qs = CustomerReturn.objects.select_related("customer", "warehouse", "organization").prefetch_related("lines")
-        status = self.request.GET.get("status", "")
-        q = self.request.GET.get("q", "").strip()
-        if q:
-            qs = qs.filter(Q(number__icontains=q) | Q(customer__name__icontains=q))
-        if status:
-            qs = qs.filter(status=status)
-        return qs
+        return self.filter_queryset(qs)
 
 
 class CustomerReturnCreateView(RoleRequiredMixin, LineDocumentMixin, CreateView):
@@ -321,3 +305,9 @@ def shipment_to_return(request, pk):
         )
     messages.success(request, f"Создан возврат покупателя № {doc.number} — проверьте и проведите")
     return redirect("customer_return_edit", pk=doc.pk)
+
+
+# ---------- Удаление отмеченных в списках ----------
+
+shipment_bulk_delete = bulk_delete_view(Shipment, "shipment_list", SHIP_ROLES, "отгрузок")
+customer_return_bulk_delete = bulk_delete_view(CustomerReturn, "customer_return_list", SHIP_ROLES, "возвратов")

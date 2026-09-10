@@ -27,4 +27,5 @@ urlpatterns = [
     path("contract-templates/new/", views.ContractTemplateCreateView.as_view(), name="contract_template_create"),
     path("contract-templates/<int:pk>/", views.ContractTemplateUpdateView.as_view(), name="contract_template_edit"),
     path("contract-templates/<int:pk>/delete/", views.contract_template_delete, name="contract_template_delete"),
+    path("counterparties/bulk/<str:action>/", views.counterparty_bulk, name="counterparty_bulk"),
 ]

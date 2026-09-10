@@ -10,9 +10,10 @@ from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, FormView, ListView, UpdateView
 
 from apps.core import roles
+from apps.core.bulk import back, selected_ids
 from apps.core.forms import ImportForm
-from apps.core.pagination import PageSizeMixin
-from apps.core.permissions import RoleRequiredMixin
+from apps.core.listing import ChoiceFilter, FilteredListMixin, PeriodFilter, TextFilter, organizations
+from apps.core.permissions import RoleRequiredMixin, role_required
 
 from .contracts import PLACEHOLDER_GROUPS, build_contract_text, default_option, sync_answers
 from .documents import counterparty_documents
@@ -27,20 +28,42 @@ from .services import BankLookupError, InnLookupError, lookup_bank, lookup_inn
 EDIT_ROLES = [roles.ROLE_ADMIN, roles.ROLE_MANAGER, roles.ROLE_ACCOUNTANT]
 
 
-class CounterpartyListView(PageSizeMixin, RoleRequiredMixin, ListView):
+def _by_partner_type(qs, value):
+    """Покупатели и поставщики включают тех, кто «покупатель и поставщик»."""
+    if value in (Counterparty.TYPE_CUSTOMER, Counterparty.TYPE_SUPPLIER):
+        return qs.filter(partner_type__in=[value, Counterparty.TYPE_BOTH])
+    return qs
+
+
+def _by_activity(qs, value):
+    return {"active": qs.filter(is_active=True), "archived": qs.filter(is_active=False)}.get(value, qs)
+
+
+ARCHIVE_ACTIONS = [
+    {"label": "В архив", "url": "counterparty_bulk", "kwargs": {"action": "archive"}, "icon": "bi-archive"},
+    {"label": "Вернуть из архива", "url": "counterparty_bulk", "kwargs": {"action": "restore"},
+     "icon": "bi-arrow-counterclockwise"},
+]
+
+
+class CounterpartyListView(FilteredListMixin, RoleRequiredMixin, ListView):
     model = Counterparty
     template_name = "partners/counterparty_list.html"
     context_object_name = "counterparties"
+    search_fields = ("name", "full_name", "inn", "phone", "email")
+    search_placeholder = "Наименование, ИНН, телефон, e-mail"
+    list_filters = [
+        ChoiceFilter("type", "Тип", choices=[(Counterparty.TYPE_CUSTOMER, "Покупатели"),
+                                             (Counterparty.TYPE_SUPPLIER, "Поставщики")], apply=_by_partner_type),
+        ChoiceFilter("kind", "Форма", choices=Counterparty.KIND_CHOICES),
+        TextFilter("inn", "ИНН"),
+        ChoiceFilter("active", "Показывать", choices=[("active", "Действующие"), ("archived", "Архивные")],
+                     apply=_by_activity),
+    ]
+    bulk_actions = ARCHIVE_ACTIONS
 
     def get_queryset(self):
-        qs = Counterparty.objects.all()
-        q = self.request.GET.get("q", "").strip()
-        ptype = self.request.GET.get("type", "")
-        if q:
-            qs = qs.filter(Q(name__icontains=q) | Q(inn__icontains=q) | Q(phone__icontains=q) | Q(email__icontains=q))
-        if ptype in (Counterparty.TYPE_CUSTOMER, Counterparty.TYPE_SUPPLIER):
-            qs = qs.filter(partner_type__in=[ptype, Counterparty.TYPE_BOTH])
-        return qs
+        return self.filter_queryset(Counterparty.objects.all())
 
     def get_template_names(self):
         # HTMX-запрос (живой поиск) получает только строки таблицы
@@ -210,21 +233,30 @@ def _save_answers(contract, post):
         answer.save()
 
 
-class ContractListView(PageSizeMixin, RoleRequiredMixin, ListView):
+def _contract_templates():
+    return ContractTemplate.objects.values_list("pk", "name")
+
+
+class ContractListView(FilteredListMixin, RoleRequiredMixin, ListView):
     allowed_roles = EDIT_ROLES
     model = Contract
     template_name = "partners/contract_list.html"
     context_object_name = "contracts"
+    search_fields = ("number", "name", "counterparty__name", "subject")
+    search_placeholder = "Номер, название, контрагент"
+    list_filters = [
+        PeriodFilter(),
+        TextFilter("partner", "Контрагент", "counterparty__name", placeholder="Наименование"),
+        ChoiceFilter("template", "Вид договора", "template_id", _contract_templates),
+        ChoiceFilter("organization", "Организация", "organization_id", organizations),
+    ]
+    bulk_actions = [{
+        "label": "Удалить", "url": "contract_bulk_delete", "icon": "bi-trash", "danger": True, "ok": "Удалить",
+        "confirm": "Удалить выбранные договоры? Отменить удаление нельзя.",
+    }]
 
     def get_queryset(self):
-        qs = Contract.objects.select_related("counterparty", "organization", "template")
-        q = self.request.GET.get("q", "").strip()
-        if q:
-            qs = qs.filter(
-                Q(number__icontains=q) | Q(name__icontains=q)
-                | Q(counterparty__name__icontains=q) | Q(subject__icontains=q)
-            )
-        return qs
+        return self.filter_queryset(Contract.objects.select_related("counterparty", "organization", "template"))
 
 
 class ContractEditBase(RoleRequiredMixin):
@@ -391,3 +423,17 @@ class PartnersImportView(RoleRequiredMixin, FormView):
         for err in errors[:20]:
             messages.error(self.request, err)
         return redirect("partners_import")
+
+
+@require_POST
+@role_required(*EDIT_ROLES)
+def counterparty_bulk(request, action):
+    """Отмеченные контрагенты: в архив или обратно."""
+    ids = selected_ids(request)
+    if not ids:
+        messages.warning(request, "Ничего не выбрано")
+    elif action in ("archive", "restore"):
+        count = Counterparty.objects.filter(pk__in=ids).update(is_active=action == "restore")
+        label = "Возвращено из архива" if action == "restore" else "Отправлено в архив"
+        messages.success(request, f"{label}: {count}")
+    return back(request, reverse("counterparty_list"))

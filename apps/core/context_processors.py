@@ -78,6 +78,7 @@ def navigation(request):
         section("reports", "Отчёты", "bi-bar-chart", [
             ("Продажи и прибыль", "report_sales", ["report_sales"]),
             ("Движение денег", "report_cashflow", ["report_cashflow"]),
+            ("Серийные номера", "report_serials", ["report_serial"]),
         ]),
         section("settings", "Настройки", "bi-gear", [
             ("Организации", "organization_list", ["organization_"]),

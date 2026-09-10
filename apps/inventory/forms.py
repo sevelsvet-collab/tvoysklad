@@ -39,7 +39,7 @@ class TransferForm(DocumentHeaderMixin, _DefaultsMixin, BootstrapFormMixin, form
 class TransferLineForm(SkipEmptyLineMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = TransferLine
-        fields = ["product", "quantity"]
+        fields = ["product", "quantity", "serial_numbers"]
 
 
 TransferLineFormSet = inlineformset_factory(
@@ -65,7 +65,7 @@ class AdjustmentForm(DocumentHeaderMixin, _DefaultsMixin, BootstrapFormMixin, fo
 class AdjustmentLineForm(SkipEmptyLineMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = AdjustmentLine
-        fields = ["product", "quantity", "price"]
+        fields = ["product", "quantity", "serial_numbers", "price"]
 
 
 AdjustmentLineFormSet = inlineformset_factory(

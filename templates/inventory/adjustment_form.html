@@ -29,7 +29,7 @@
       </div>
     </div>
   </div>
-  {% include "documents/_line_table.html" with show_stock=True show_price=is_income show_vat=False %}
+  {% include "documents/_line_table.html" with serial_mode=is_income|yesno:"enter,pick" show_stock=True show_price=is_income show_vat=False %}
 </form>
 {% endblock %}
 {% block scripts %}<script src="{% static 'js/doc-lines.js' %}{% if asset_version %}?v={{ asset_version }}{% endif %}"></script>{% endblock %}

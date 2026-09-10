@@ -49,7 +49,7 @@ class ReceiptForm(DocumentHeaderMixin, BootstrapFormMixin, forms.ModelForm):
 class ReceiptLineForm(SkipEmptyLineMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = ReceiptLine
-        fields = ["product", "quantity", "price", "discount", "vat_rate"]
+        fields = ["product", "quantity", "serial_numbers", "price", "discount", "vat_rate"]
 
 
 ReceiptLineFormSet = inlineformset_factory(
@@ -82,7 +82,7 @@ class SupplierReturnForm(DocumentHeaderMixin, BootstrapFormMixin, forms.ModelFor
 class SupplierReturnLineForm(SkipEmptyLineMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = SupplierReturnLine
-        fields = ["product", "quantity", "price", "discount", "vat_rate"]
+        fields = ["product", "quantity", "serial_numbers", "price", "discount", "vat_rate"]
 
 
 SupplierReturnLineFormSet = inlineformset_factory(

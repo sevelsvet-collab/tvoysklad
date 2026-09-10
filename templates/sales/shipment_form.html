@@ -63,7 +63,7 @@
   </ul>
   <div class="tab-content border border-top-0 rounded-bottom mb-3">
     <div class="tab-pane fade show active" id="tab-lines" role="tabpanel">
-      {% include "documents/_line_table.html" with show_stock=True show_price=True show_vat=True show_discount=True price_source="sale" no_outer_card=True %}
+      {% include "documents/_line_table.html" with serial_mode="pick" show_stock=True show_price=True show_vat=True show_discount=True price_source="sale" no_outer_card=True %}
       {% if object.is_posted %}
       <div class="d-flex gap-4 px-3 py-2 border-top text-muted small">
         <div>Выручка: <b>{{ object.total|floatformat:2|intcomma }} ₽</b></div>
@@ -77,7 +77,7 @@
     </div>
   </div>
   {% endwith %}{% else %}
-  {% include "documents/_line_table.html" with show_stock=True show_price=True show_vat=True show_discount=True price_source="sale" %}
+  {% include "documents/_line_table.html" with serial_mode="pick" show_stock=True show_price=True show_vat=True show_discount=True price_source="sale" %}
   {% endif %}
 </form>
 {% endblock %}

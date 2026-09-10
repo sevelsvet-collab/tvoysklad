@@ -12,4 +12,5 @@ urlpatterns = [
     path("products/groups/new/", views.GroupCreateView.as_view(), name="group_create"),
     path("products/groups/<int:pk>/", views.GroupUpdateView.as_view(), name="group_edit"),
     path("products/import/", views.CatalogImportView.as_view(), name="catalog_import"),
+    path("products/bulk/<str:action>/", views.product_bulk, name="product_bulk"),
 ]

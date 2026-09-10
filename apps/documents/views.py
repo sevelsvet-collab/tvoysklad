@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 
 from apps.core.constants import VAT_NONE, VAT_RATES, vat_amount
+from apps.inventory.serials import parse as parse_serials
 from apps.sales.models import Invoice, Shipment
 
 from .forms import InvoiceEmailForm
@@ -64,6 +65,8 @@ def _lines_payload(lines, only_products=False, only_services=False):
             "vat_amount": line_vat,
             "total": line_total,
             "total_without_vat": line_total - line_vat,
+            # серийные номера — печатаются под названием товара (ТОРГ-12, УПД)
+            "serials": parse_serials(getattr(line, "serial_numbers", "")) if line.product.track_serials else [],
         })
     return rows, total, vat_total, has_vat
 

@@ -48,14 +48,14 @@
   </ul>
   <div class="tab-content border border-top-0 rounded-bottom mb-3">
     <div class="tab-pane fade show active" id="tab-lines" role="tabpanel">
-      {% include "documents/_line_table.html" with show_stock=True show_price=True show_vat=True show_discount=True price_source="purchase" no_outer_card=True %}
+      {% include "documents/_line_table.html" with serial_mode="pick" show_stock=True show_price=True show_vat=True show_discount=True price_source="purchase" no_outer_card=True %}
     </div>
     <div class="tab-pane fade" id="tab-related" role="tabpanel">
       {% include "documents/_related_docs.html" with related_docs=related_docs %}
     </div>
   </div>
   {% endwith %}{% else %}
-  {% include "documents/_line_table.html" with show_stock=True show_price=True show_vat=True show_discount=True price_source="purchase" %}
+  {% include "documents/_line_table.html" with serial_mode="pick" show_stock=True show_price=True show_vat=True show_discount=True price_source="purchase" %}
   {% endif %}
 </form>
 {% endblock %}

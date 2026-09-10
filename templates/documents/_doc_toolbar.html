@@ -17,7 +17,7 @@ save_post_label, post_label, posted_label.
       <button type="submit" form="doc-action" formaction="{% url post_url_name object.pk %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-check2-all me-1"></i>{{ post_label|default:"Провести" }}</button>
     {% endif %}
     <button type="submit" form="doc-action" formaction="{% url delete_url_name object.pk %}" class="btn btn-outline-danger btn-sm"
-            onclick="return confirm('Удалить документ?');"><i class="bi bi-trash me-1"></i>Удалить</button>
+            data-confirm="Удалить документ?" data-confirm-ok="Удалить"><i class="bi bi-trash me-1"></i>Удалить</button>
   {% endif %}
   {% if list_url %}<a href="{{ list_url }}" class="btn btn-outline-secondary btn-sm">Закрыть</a>{% endif %}
   {% if object %}

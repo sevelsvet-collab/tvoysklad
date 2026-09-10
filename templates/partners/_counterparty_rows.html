@@ -1,5 +1,6 @@
 {% for cp in counterparties %}
-<tr onclick="window.location='{% url 'counterparty_edit' cp.pk %}'">
+<tr data-url="{% url 'counterparty_edit' cp.pk %}">
+  <td class="list-check-col"><input type="checkbox" name="ids" value="{{ cp.pk }}" class="form-check-input list-check" aria-label="Выбрать"></td>
   <td class="fw-semibold">{{ cp.name }}</td>
   <td>{{ cp.get_partner_type_display }}</td>
   <td>{{ cp.inn|default:"—" }}</td>
@@ -9,5 +10,5 @@
   <td>{% if cp.is_active %}<span class="badge bg-success">Действующий</span>{% else %}<span class="badge bg-secondary">Архив</span>{% endif %}</td>
 </tr>
 {% empty %}
-<tr><td colspan="7" class="text-center text-muted py-4">Ничего не найдено</td></tr>
+<tr><td colspan="8" class="text-center text-muted py-4">Ничего не найдено</td></tr>
 {% endfor %}

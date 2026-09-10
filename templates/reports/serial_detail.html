@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ serial.number }} — серийный номер{% endblock %}
+{% block page_title %}Серийный номер {{ serial.number }}{% endblock %}
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6"><div class="text-muted small">Товар</div><a href="{% url 'product_edit' serial.product.pk %}">{{ serial.product.name }}</a></div>
+      <div class="col-md-3"><div class="text-muted small">Состояние</div>{{ serial.get_status_display }}</div>
+      <div class="col-md-3"><div class="text-muted small">Склад</div>{{ serial.warehouse|default:"—" }}</div>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-header bg-white fw-semibold">История</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light"><tr><th>Дата</th><th>Документ</th><th>Контрагент</th><th>Склад</th><th>Движение</th></tr></thead>
+      <tbody>
+        {% for row in history %}
+        <tr>
+          <td>{{ row.m.date|date:"d.m.Y" }}</td>
+          <td>{% if row.url %}<a href="{{ row.url }}">{{ row.label }} № {{ row.m.doc_number }}</a>{% else %}{{ row.label }}{% endif %}</td>
+          <td>{{ row.partner.name|default:"—" }}</td>
+          <td>{{ row.m.warehouse }}</td>
+          <td>{% if row.m.quantity > 0 %}<span class="text-success">приход</span>{% else %}<span class="text-danger">расход</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-muted text-center py-3">Движений нет</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<a href="{% url 'report_serials' %}" class="btn btn-outline-secondary btn-sm mt-3">← Все серийные номера</a>
+{% endblock %}

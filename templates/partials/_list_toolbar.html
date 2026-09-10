@@ -1,0 +1,94 @@
+{% comment %}
+Панель списка как в МойСклад: «Фильтр», быстрый поиск, отмеченные строки и действия с ними,
+раскрывающаяся панель фильтров. Данные — из apps.core.listing.FilteredListMixin:
+list_filters, filters_active, bulk_actions, search_placeholder, keep_query.
+Необязательно: show_columns=True — шестерёнка настройки столбцов (#col-settings).
+Строки с чекбоксами лежат в <form id="bulk-form" method="post"> (кнопки действий ссылаются на неё).
+{% endcomment %}
+<form method="get" id="list-filter-form" class="mb-2">
+  {% if request.GET.per_page %}<input type="hidden" name="per_page" value="{{ request.GET.per_page }}">{% endif %}
+  {% if request.GET.group %}<input type="hidden" name="group" value="{{ request.GET.group }}">{% endif %}
+  <div class="list-toolbar d-flex align-items-center gap-2 flex-wrap">
+    {% if list_filters %}
+    <button type="button" class="btn btn-sm {% if filters_active %}btn-secondary{% else %}btn-outline-secondary{% endif %}"
+            data-filter-toggle aria-controls="filter-panel" aria-expanded="{% if filters_active %}true{% else %}false{% endif %}">
+      <i class="bi bi-funnel me-1"></i>Фильтр{% if filters_active %}<span class="badge text-bg-light ms-1">{{ filters_active }}</span>{% endif %}
+    </button>
+    {% endif %}
+    <input type="search" name="q" class="form-control form-control-sm list-search"
+           placeholder="{{ search_placeholder|default:'Поиск' }}" value="{{ request.GET.q|default:'' }}">
+    {% if bulk_actions %}
+    <div class="btn-group btn-group-sm list-bulk" title="Действия с отмеченными строками">
+      <span class="btn btn-outline-secondary list-bulk-count" aria-label="Отмечено">0</span>
+      <button type="button" class="btn btn-outline-secondary dropdown-toggle list-bulk-menu"
+              data-bs-toggle="dropdown" aria-expanded="false" disabled>Изменить</button>
+      <ul class="dropdown-menu">
+        {% for a in bulk_actions %}
+        <li>
+          <button type="submit" form="bulk-form" formaction="{{ a.url }}"
+                  class="dropdown-item{% if a.danger %} text-danger{% endif %}"
+                  {% if a.confirm %}data-confirm="{{ a.confirm }}" data-confirm-ok="{{ a.ok|default:a.label }}"{% endif %}>
+            {% if a.icon %}<i class="bi {{ a.icon }} me-1"></i>{% endif %}{{ a.label }}
+          </button>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if show_columns %}
+    <div class="dropdown ms-auto">
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown"
+              data-bs-auto-close="outside" aria-expanded="false" title="Настройка столбцов">
+        <i class="bi bi-gear-fill"></i>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end p-0" style="min-width:230px;max-height:420px;overflow-y:auto;">
+        <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
+          <span class="small fw-semibold">Столбцы</span>
+          <button type="button" class="btn btn-link btn-sm p-0 text-secondary" id="cols-reset">Сбросить</button>
+        </div>
+        <div id="col-settings" class="py-1"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if list_filters %}
+  <div id="filter-panel" class="filter-panel mt-2{% if not filters_active %} d-none{% endif %}">
+    <div class="row g-2">
+      {% for b in list_filters %}
+      <div class="{% if b.f.kind == 'period' %}col-12 col-md-6 col-xl-4{% else %}col-6 col-md-4 col-xl-2{% endif %}">
+        <label class="form-label small mb-1">
+          {{ b.f.label }}
+          {% if b.f.kind == 'period' %}
+          <span class="period-links ms-1">
+            <a href="#" data-period="yesterday" data-period-for="{{ b.f.name }}">вч</a> ·
+            <a href="#" data-period="today" data-period-for="{{ b.f.name }}">сег</a> ·
+            <a href="#" data-period="week" data-period-for="{{ b.f.name }}">нед</a> ·
+            <a href="#" data-period="month" data-period-for="{{ b.f.name }}">мес</a>
+          </span>
+          {% endif %}
+        </label>
+        {% if b.f.kind == 'period' %}
+          <div class="d-flex align-items-center gap-1">
+            <input type="date" name="{{ b.f.name }}_from" value="{{ b.from }}" class="form-control form-control-sm" aria-label="{{ b.f.label }} с">
+            <span class="text-muted">–</span>
+            <input type="date" name="{{ b.f.name }}_to" value="{{ b.to }}" class="form-control form-control-sm" aria-label="{{ b.f.label }} по">
+          </div>
+        {% elif b.f.kind == 'select' %}
+          <select name="{{ b.f.name }}" class="form-select form-select-sm">
+            {% if b.f.empty_label %}<option value="">{{ b.f.empty_label }}</option>{% endif %}
+            {% for value, label in b.choices %}<option value="{{ value }}"{% if value == b.value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        {% else %}
+          <input type="text" name="{{ b.f.name }}" value="{{ b.value }}" class="form-control form-control-sm" placeholder="{{ b.f.placeholder }}">
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="d-flex gap-2 mt-3">
+      <button type="submit" class="btn btn-sm btn-success px-3">Найти</button>
+      <a href="{{ request.path }}{% if keep_query %}?{{ keep_query }}{% endif %}" class="btn btn-sm btn-outline-secondary">Очистить</a>
+    </div>
+  </div>
+  {% endif %}
+</form>

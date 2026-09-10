@@ -1,7 +1,13 @@
 {% load humanize %}
 {% for p in products %}
-<tr onclick="window.location='{% url 'product_edit' p.pk %}'">
-  <td class="fw-semibold">{{ p.name }}</td>
+<tr data-url="{% url 'product_edit' p.pk %}"{% if not p.is_active %} class="text-muted"{% endif %}>
+  <td class="list-check-col"><input type="checkbox" name="ids" value="{{ p.pk }}" class="form-check-input list-check" aria-label="Выбрать"></td>
+  <td class="fw-semibold">
+    {{ p.name }}
+    {% if not p.is_active %}<span class="badge text-bg-secondary ms-1">архив</span>{% endif %}
+    {% if p.track_serials %}<span class="badge text-bg-light border ms-1" title="Учёт по серийным номерам">S/N</span>{% endif %}
+  </td>
+  <td>{{ p.code|default:"—" }}</td>
   <td>{{ p.article|default:"—" }}</td>
   <td>{{ p.group|default:"—" }}</td>
   <td>{{ p.unit }}</td>
@@ -11,5 +17,5 @@
   <td>{% if p.is_service %}<span class="badge bg-info">Услуга</span>{% else %}<span class="badge bg-light text-dark border">Товар</span>{% endif %}</td>
 </tr>
 {% empty %}
-<tr><td colspan="8" class="text-center text-muted py-4">Ничего не найдено</td></tr>
+<tr><td colspan="10" class="text-center text-muted py-4">Ничего не найдено</td></tr>
 {% endfor %}

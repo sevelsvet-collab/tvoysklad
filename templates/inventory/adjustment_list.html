@@ -7,26 +7,28 @@
 </a>
 {% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-      <thead class="table-light">
-        <tr><th>№</th><th>Дата</th><th>Склад</th><th>Причина</th><th>Статус</th></tr>
-      </thead>
-      <tbody>
-        {% for a in adjustments %}
-        <tr onclick="window.location='{% url 'adjustment_edit' a.pk %}'">
-          <td class="fw-semibold">{{ a.number }}</td>
-          <td>{{ a.date|date:"d.m.Y" }}</td>
-          <td>{{ a.warehouse.name }}</td>
-          <td>{{ a.reason|default:"—" }}</td>
-          <td>{% if a.is_posted %}<span class="badge bg-success">Проведён</span>{% else %}<span class="badge bg-secondary">Черновик</span>{% endif %}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="5" class="text-center text-muted py-4">Документов пока нет</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{% include "partials/_list_toolbar.html" %}
+<form method="post" id="bulk-form">
+  {% csrf_token %}
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 list-table">
+        <thead class="table-light">
+          <tr><th class="list-check-col"><input type="checkbox" class="form-check-input" data-list-select-all aria-label="Выбрать все"></th><th>№</th><th>Дата</th><th>Склад</th><th>Причина</th><th>Статус</th></tr>
+        </thead>
+        <tbody>
+          {% for a in adjustments %}
+          <tr data-url="{% url 'adjustment_edit' a.pk %}">
+            <td class="list-check-col"><input type="checkbox" name="ids" value="{{ a.pk }}" class="form-check-input list-check" aria-label="Выбрать"></td>
+            <td class="fw-semibold">{{ a.number }}</td><td>{{ a.date|date:"d.m.Y" }} <span class="text-muted small">{{ a.time|time:"H:i" }}</span></td><td>{{ a.warehouse.name }}</td><td>{{ a.reason|default:"—" }}</td><td>{% if a.is_posted %}<span class="badge bg-success">Проведён</span>{% else %}<span class="badge bg-secondary">Черновик</span>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">{% if filters_active or request.GET.q %}Ничего не найдено — измените условия поиска{% else %}Документов пока нет{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
-</div>
+</form>
+{% include "partials/_pagination.html" %}
 {% endblock %}

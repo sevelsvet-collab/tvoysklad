@@ -7,71 +7,18 @@
 {% endblock %}
 {% block content %}
 
-{# ── Панель фильтров + шестерёнка ── #}
-<div class="d-flex gap-2 mb-2 align-items-center flex-wrap">
-  <form method="get" id="search-form" class="d-flex gap-2 flex-wrap">
-    <input type="hidden" name="per_page" value="{{ request.GET.per_page|default:'50' }}">
-    <input type="search" name="q" class="form-control form-control-sm" style="max-width:280px;"
-           placeholder="Номер или покупатель" value="{{ request.GET.q|default:'' }}">
-    <select name="status" class="form-select form-select-sm" style="max-width:160px;" onchange="this.form.submit()">
-      <option value="">Все статусы</option>
-      <option value="draft"  {% if request.GET.status == 'draft'  %}selected{% endif %}>Черновики</option>
-      <option value="issued" {% if request.GET.status == 'issued' %}selected{% endif %}>Выставленные</option>
-    </select>
-    <button class="btn btn-sm btn-outline-secondary">Найти</button>
-  </form>
-
-  {# Количество строк #}
-  <div class="d-flex gap-1 ms-2">
-    {% for n in "25,50,100"|cut:" "|ljust:"1" %}{% endfor %}
-    {% for n in perpage_choices %}
-    <a href="?q={{ request.GET.q|default:'' }}&status={{ request.GET.status|default:'' }}&per_page={{ n }}"
-       class="btn btn-sm {% if current_per_page == n %}btn-secondary{% else %}btn-outline-secondary{% endif %}">{{ n }}</a>
-    {% endfor %}
-  </div>
-
-  {# Шестерёнка настройки колонок #}
-  <div class="dropdown ms-auto">
-    <button class="btn btn-sm btn-outline-secondary" type="button"
-            data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
-            title="Настройка столбцов">
-      <i class="bi bi-gear-fill"></i>
-    </button>
-    <div class="dropdown-menu dropdown-menu-end p-0" style="min-width:230px;max-height:420px;overflow-y:auto;">
-      <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
-        <span class="small fw-semibold">Столбцы</span>
-        <button type="button" class="btn btn-link btn-sm p-0 text-secondary" id="cols-reset">Сбросить</button>
-      </div>
-      <div id="col-settings" class="py-1"></div>
-    </div>
-  </div>
-</div>
-
-{# ── Панель массовых действий (скрыта по умолчанию) ── #}
-<div id="bulk-bar" class="d-none alert alert-secondary py-2 mb-2">
-  <div class="d-flex align-items-center gap-3">
-    <span class="small">Выбрано: <b id="bulk-count">0</b></span>
-    <button type="submit" form="bulk-form" name="action" value="delete"
-            class="btn btn-sm btn-danger"
-            onclick="return confirm('Удалить выбранные счета?')">
-      <i class="bi bi-trash me-1"></i>Удалить выбранные
-    </button>
-    <button type="button" class="btn btn-sm btn-link text-secondary ms-auto p-0" id="clear-sel">
-      Снять выделение
-    </button>
-  </div>
-</div>
+{% include "partials/_list_toolbar.html" with show_columns=True %}
 
 {# ── Таблица (внутри bulk-form для чекбоксов) ── #}
 <form method="post" action="{% url 'invoice_bulk_delete' %}" id="bulk-form">
   {% csrf_token %}
   <div class="card">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0 small" id="inv-table">
+      <table class="table table-hover align-middle mb-0 small list-table" id="inv-table">
         <thead class="table-light">
           <tr>
             <th style="width:32px;">
-              <input type="checkbox" class="form-check-input" id="select-all">
+              <input type="checkbox" class="form-check-input" data-list-select-all aria-label="Выбрать все">
             </th>
             <th data-col="number">№</th>
             <th data-col="time">Время</th>
@@ -89,9 +36,9 @@
         </thead>
         <tbody>
           {% for inv in invoices %}
-          <tr class="inv-row" data-url="{% url 'invoice_edit' inv.pk %}" style="cursor:pointer;">
-            <td class="ps-2" onclick="event.stopPropagation()">
-              <input type="checkbox" name="ids" value="{{ inv.pk }}" class="form-check-input row-check">
+          <tr class="inv-row" data-url="{% url 'invoice_edit' inv.pk %}">
+            <td class="ps-2 list-check-col">
+              <input type="checkbox" name="ids" value="{{ inv.pk }}" class="form-check-input list-check" aria-label="Выбрать">
             </td>
             <td data-col="number" class="fw-semibold text-primary">{{ inv.number }}</td>
             <td data-col="time" class="text-muted">
@@ -148,32 +95,7 @@
   </div>
 </form>
 
-{# Пагинация #}
-{% if is_paginated %}
-<nav class="mt-3">
-  <ul class="pagination pagination-sm justify-content-center mb-0">
-    {% if page_obj.has_previous %}
-    <li class="page-item">
-      <a class="page-link" href="?q={{ request.GET.q|default:'' }}&status={{ request.GET.status|default:'' }}&per_page={{ request.GET.per_page|default:'50' }}&page={{ page_obj.previous_page_number }}">‹</a>
-    </li>
-    {% endif %}
-    {% for num in paginator.page_range %}
-      {% if page_obj.number == num %}
-        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-      {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
-        <li class="page-item">
-          <a class="page-link" href="?q={{ request.GET.q|default:'' }}&status={{ request.GET.status|default:'' }}&per_page={{ request.GET.per_page|default:'50' }}&page={{ num }}">{{ num }}</a>
-        </li>
-      {% endif %}
-    {% endfor %}
-    {% if page_obj.has_next %}
-    <li class="page-item">
-      <a class="page-link" href="?q={{ request.GET.q|default:'' }}&status={{ request.GET.status|default:'' }}&per_page={{ request.GET.per_page|default:'50' }}&page={{ page_obj.next_page_number }}">›</a>
-    </li>
-    {% endif %}
-  </ul>
-</nav>
-{% endif %}
+{% include "partials/_pagination.html" %}
 
 <script>
 (function() {
@@ -266,37 +188,6 @@
   applyVisibility(vis);
   buildPanel(vis);
 
-  // ── Клик по строке ──
-  document.querySelectorAll('.inv-row').forEach(row => {
-    row.addEventListener('click', function(e) {
-      if (e.target.tagName === 'INPUT') return;
-      window.location = this.dataset.url;
-    });
-  });
-
-  // ── Массовый выбор ──
-  function updateBulkBar() {
-    const n = document.querySelectorAll('.row-check:checked').length;
-    document.getElementById('bulk-count').textContent = n;
-    const bar = document.getElementById('bulk-bar');
-    if (n > 0) { bar.classList.remove('d-none'); }
-    else        { bar.classList.add('d-none'); }
-  }
-
-  document.getElementById('select-all').addEventListener('change', function() {
-    document.querySelectorAll('.row-check').forEach(cb => cb.checked = this.checked);
-    updateBulkBar();
-  });
-
-  document.querySelectorAll('.row-check').forEach(cb => {
-    cb.addEventListener('change', updateBulkBar);
-  });
-
-  document.getElementById('clear-sel').addEventListener('click', function() {
-    document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
-    document.getElementById('select-all').checked = false;
-    updateBulkBar();
-  });
 })();
 </script>
 {% endblock %}

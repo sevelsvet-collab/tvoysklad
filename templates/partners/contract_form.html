@@ -27,7 +27,7 @@
         <a href="{% url 'contract_docx' object.pk %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-word me-1"></i>Скачать Word</a>
       {% endif %}
       <button type="submit" form="doc-action" formaction="{% url 'contract_delete' object.pk %}" class="btn btn-outline-danger btn-sm"
-              onclick="return confirm('Удалить договор?');"><i class="bi bi-trash me-1"></i>Удалить</button>
+              data-confirm="Удалить договор?" data-confirm-ok="Удалить"><i class="bi bi-trash me-1"></i>Удалить</button>
     {% endif %}
     <a href="{% url 'contract_list' %}" class="btn btn-outline-secondary btn-sm">Закрыть</a>
     {% if object.is_expired %}<span class="badge bg-danger">Срок истёк</span>{% endif %}

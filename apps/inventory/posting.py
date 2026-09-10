@@ -26,21 +26,24 @@ class PostableMixin:
 
     @transaction.atomic
     def post(self, allow_negative=None):
-        from apps.inventory import services
+        from apps.inventory import serials, services
 
         services.clear_movements(self.DOC_TYPE, self.pk)  # чистый лист (идемпотентно)
+        serials.clear(self)
         specs = self.build_specs()
         if allow_negative is None:
             allow_negative = self.get_allow_negative()
         services.validate_stock(specs, allow_negative)
         services.create_movements(self.DOC_TYPE, self.pk, self.number, self.date, specs)
+        serials.apply(self)  # серийные номера: проверка и движение (StockError — откат)
         self.status = DOC_POSTED
         self.save(update_fields=["status"])
 
     @transaction.atomic
     def unpost(self):
-        from apps.inventory import services
+        from apps.inventory import serials, services
 
         services.clear_movements(self.DOC_TYPE, self.pk)
+        serials.clear(self)
         self.status = DOC_DRAFT
         self.save(update_fields=["status"])

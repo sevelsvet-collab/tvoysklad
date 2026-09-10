@@ -53,7 +53,7 @@
     {% for r in rows %}
     <tr class="small">
       <td class="center">{{ r.n }}</td>
-      <td>{{ r.product.name }}</td>
+      <td>{{ r.product.name }}{% if r.serials %}<br><span class="small">S/N: {{ r.serials|join:", " }}</span>{% endif %}</td>
       <td class="center">{{ r.unit }}</td>
       <td class="right">{{ r.quantity|floatformat:"-3" }}</td>
       <td class="right">{{ r.price|floatformat:2|intcomma }}</td>

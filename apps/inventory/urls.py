@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import serial_views, views
 from .models import StockAdjustment
 
 INCOME = StockAdjustment.KIND_INCOME
@@ -26,4 +26,12 @@ urlpatterns = [
     path("stock/adjustments/<int:pk>/unpost/", views.adjustment_unpost, name="adjustment_unpost"),
     path("stock/adjustments/<int:pk>/delete/", views.adjustment_delete, name="adjustment_delete"),
     path("stock/adjustments/<str:kind>/", views.AdjustmentListView.as_view(), name="adjustment_list"),
+
+    # Серийные номера
+    path("api/serials/available/", serial_views.serials_available, name="api_serials_available"),
+    path("products/<int:pk>/serials/", serial_views.product_serial_stock, name="product_serial_stock"),
+    path("reports/serials/", serial_views.SerialReportView.as_view(), name="report_serials"),
+    path("reports/serials/<int:pk>/", serial_views.SerialDetailView.as_view(), name="report_serial_detail"),
+    path("stock/transfers-bulk-delete/", views.transfer_bulk_delete, name="transfer_bulk_delete"),
+    path("stock/adjustments-bulk-delete/", views.adjustment_bulk_delete, name="adjustment_bulk_delete"),
 ]

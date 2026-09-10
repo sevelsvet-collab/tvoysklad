@@ -31,7 +31,7 @@
       </div>
     </div>
   </div>
-  {% include "documents/_line_table.html" with show_stock=True show_price=False show_vat=False warehouse_field="warehouse_from" %}
+  {% include "documents/_line_table.html" with serial_mode="pick" show_stock=True show_price=False show_vat=False warehouse_field="warehouse_from" %}
 </form>
 {% endblock %}
 {% block scripts %}<script src="{% static 'js/doc-lines.js' %}{% if asset_version %}?v={{ asset_version }}{% endif %}"></script>{% endblock %}

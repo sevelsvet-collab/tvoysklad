@@ -112,7 +112,7 @@
     {% for r in rows %}
     <tr style="vertical-align:middle;">
       <td class="center">{{ r.n }}</td>
-      <td>{{ r.product.name }}{% if r.product.article %} (арт. {{ r.product.article }}){% endif %}</td>
+      <td>{{ r.product.name }}{% if r.product.article %} (арт. {{ r.product.article }}){% endif %}{% if r.serials %}<br><span class="small">S/N: {{ r.serials|join:", " }}</span>{% endif %}</td>
       <td class="center"></td>
       <td class="center">{{ r.unit }}</td>
       <td class="center">{{ r.unit.okei_code }}</td>
