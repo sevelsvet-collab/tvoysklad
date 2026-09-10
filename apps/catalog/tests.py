@@ -194,3 +194,71 @@ class ImportProductsTests(TestCase):
         nb.refresh_from_db()
         self.assertEqual(nb.name, "Ноутбук Pro")
         self.assertEqual(nb.sale_price, 52000)
+
+
+class ProductCardFromDocumentTests(TestCase):
+    """Карточка товара во всплывающем окне документа (?embed=1)."""
+
+    def setUp(self):
+        self.unit = Unit.objects.create(name="шт")
+        self.product = Product.objects.create(name="Кабель HDMI", article="H-2", unit=self.unit)
+        self.user = User.objects.create_user("manager", password="pass12345")
+        self.user.groups.add(Group.objects.get(name=roles.ROLE_MANAGER))
+        self.client.login(username="manager", password="pass12345")
+
+    def _post_data(self, **extra):
+        data = {
+            "item_type": "service", "name": "Установка и настройка оборудования",
+            "article": "", "code": "", "barcode": "", "unit": self.unit.pk,
+            "vat_rate": "20", "purchase_price": "0", "sale_price": "1500",
+            "min_stock": "0", "description": "", "is_active": "on",
+        }
+        data.update(extra)
+        return data
+
+    def test_search_by_id_returns_exact_product(self):
+        Product.objects.create(name="Другой товар", unit=self.unit)
+        resp = self.client.get(reverse("api_product_search"), {"id": self.product.pk})
+        results = resp.json()["results"]
+        self.assertEqual([r["id"] for r in results], [self.product.pk])
+        self.assertEqual(results[0]["label"], "Кабель HDMI (H-2)")
+
+    def test_search_by_id_finds_archived_product(self):
+        """Архивный товар может стоять в старом документе — подпись нужна и ему."""
+        self.product.is_active = False
+        self.product.save()
+        resp = self.client.get(reverse("api_product_search"), {"id": self.product.pk})
+        self.assertEqual(len(resp.json()["results"]), 1)
+
+    def test_create_form_prefilled_from_document_line(self):
+        resp = self.client.get(reverse("product_create"), {
+            "embed": "1", "name": "Установка оборудования",
+            "price_source": "sale", "price": "1500",
+        })
+        form = resp.context["form"]
+        self.assertEqual(form.initial["name"], "Установка оборудования")
+        self.assertEqual(form.initial["sale_price"], Decimal("1500"))
+        self.assertEqual(form.initial["unit"], self.unit.pk)
+        self.assertNotContains(resp, 'class="topbar"')   # без верхнего меню
+
+    def test_embed_create_stays_in_card_and_notifies_document(self):
+        resp = self.client.post(reverse("product_create") + "?embed=1", self._post_data())
+        product = Product.objects.get(name="Установка и настройка оборудования")
+        self.assertTrue(product.is_service)
+        self.assertRedirects(resp, reverse("product_edit", args=[product.pk]) + "?embed=1&saved=1")
+        page = self.client.get(resp.url)
+        self.assertContains(page, "entity-saved")
+        self.assertContains(page, f"id: {product.pk}")
+
+    def test_regular_create_returns_to_list(self):
+        resp = self.client.post(reverse("product_create"), self._post_data())
+        self.assertRedirects(resp, reverse("product_list"))
+
+    def test_embed_edit_renames_product(self):
+        resp = self.client.post(
+            reverse("product_edit", args=[self.product.pk]) + "?embed=1",
+            self._post_data(name="Кабель HDMI 2 м", item_type="product"),
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.name, "Кабель HDMI 2 м")

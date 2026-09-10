@@ -1,6 +1,6 @@
 from django import forms
 
-from apps.core.forms import BootstrapFormMixin
+from apps.core.forms import DocumentHeaderMixin, BootstrapFormMixin
 from apps.core.models import Organization
 from apps.partners.models import Counterparty
 from apps.sales.models import Invoice
@@ -21,10 +21,10 @@ class AccountForm(BootstrapFormMixin, forms.ModelForm):
                 self.fields["organization"].initial = org
 
 
-class PaymentForm(BootstrapFormMixin, forms.ModelForm):
+class PaymentForm(DocumentHeaderMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Payment
-        fields = ["date", "organization", "account", "counterparty", "invoice", "amount", "purpose"]
+        fields = ["date", "number", "time", "organization", "account", "counterparty", "invoice", "amount", "purpose"]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "purpose": forms.Textarea(attrs={"rows": 2}),
@@ -56,12 +56,12 @@ class PaymentForm(BootstrapFormMixin, forms.ModelForm):
             del self.fields["invoice"]
 
 
-class AccountCorrectionForm(BootstrapFormMixin, forms.ModelForm):
+class AccountCorrectionForm(DocumentHeaderMixin, BootstrapFormMixin, forms.ModelForm):
     """Корректировка остатка кассы/счёта: вводится фактический остаток."""
 
     class Meta:
         model = AccountCorrection
-        fields = ["date", "organization", "account", "actual_balance", "comment"]
+        fields = ["date", "number", "time", "organization", "account", "actual_balance", "comment"]
         widgets = {"date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")}
 
     def __init__(self, *args, account_kind=None, **kwargs):
@@ -82,12 +82,12 @@ class AccountCorrectionForm(BootstrapFormMixin, forms.ModelForm):
                 self.fields["account"].initial = default
 
 
-class SettlementCorrectionForm(BootstrapFormMixin, forms.ModelForm):
+class SettlementCorrectionForm(DocumentHeaderMixin, BootstrapFormMixin, forms.ModelForm):
     """Корректировка взаиморасчётов: контрагент, направление, сумма."""
 
     class Meta:
         model = SettlementCorrection
-        fields = ["date", "organization", "counterparty", "direction", "amount", "comment"]
+        fields = ["date", "number", "time", "organization", "counterparty", "direction", "amount", "comment"]
         widgets = {"date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")}
 
     def __init__(self, *args, **kwargs):

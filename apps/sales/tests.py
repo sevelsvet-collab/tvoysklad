@@ -194,3 +194,187 @@ class CustomerFilterTests(TestCase):
         names = [r["name"] for r in resp.json()["results"]]
         self.assertIn("Клиент", names)
         self.assertNotIn("Снабженец", names)
+
+
+class OrganizationVatTests(TestCase):
+    """Ставка НДС в строках документа берётся из организации документа."""
+
+    def setUp(self):
+        self.unit = Unit.objects.create(name="шт")
+        self.wh = Warehouse.objects.create(name="Основной", is_default=True)
+        self.customer = Counterparty.objects.create(name="Клиент", partner_type=Counterparty.TYPE_CUSTOMER)
+        # товар заведён со ставкой 20% (как было по умолчанию)
+        self.product = Product.objects.create(name="Товар", unit=self.unit, sale_price=490, vat_rate="20")
+        self.user = User.objects.create_user("m", password="pass12345")
+        self.user.groups.add(Group.objects.get(name=roles.ROLE_MANAGER))
+        self.client.login(username="m", password="pass12345")
+
+    def _post_invoice(self, org, vat_rate):
+        data = {
+            "date": "2026-09-10", "organization": org.pk, "warehouse": self.wh.pk,
+            "customer": self.customer.pk, "contract": "", "due_date": "", "comment": "",
+            "action": "save",
+            "lines-TOTAL_FORMS": "1", "lines-INITIAL_FORMS": "0",
+            "lines-MIN_NUM_FORMS": "0", "lines-MAX_NUM_FORMS": "1000",
+            "lines-0-product": self.product.pk, "lines-0-quantity": "1",
+            "lines-0-price": "490", "lines-0-vat_rate": vat_rate,
+        }
+        resp = self.client.post(reverse("invoice_create"), data)
+        self.assertEqual(resp.status_code, 302)
+        return Invoice.objects.latest("id")
+
+    def test_non_payer_saves_lines_without_vat(self):
+        """Фирма на УСН: даже если в строке осталось 20%, сохраняется «Без НДС»."""
+        usn = Organization.objects.create(name="ИП на УСН", vat_payer=False, default_vat_rate="none")
+        invoice = self._post_invoice(usn, "20")
+        self.assertEqual(invoice.lines.get().vat_rate, "none")
+
+    def test_payer_keeps_product_rate(self):
+        """Плательщик НДС: ставка из строки (товара) сохраняется, например 10%."""
+        payer = Organization.objects.create(name="ООО с НДС", vat_payer=True, default_vat_rate="20")
+        invoice = self._post_invoice(payer, "10")
+        self.assertEqual(invoice.lines.get().vat_rate, "10")
+
+    def test_new_invoice_form_defaults_to_org_rate(self):
+        Organization.objects.create(name="ИП на УСН", vat_payer=False, default_vat_rate="20",
+                                    is_default=True)
+        resp = self.client.get(reverse("invoice_create"))
+        # неплательщик с ошибочно оставленной ставкой 20% всё равно «Без НДС»
+        self.assertEqual(resp.context["default_vat_rate"], "none")
+        self.assertContains(resp, 'data-org-vat="')
+
+    def test_org_vat_map_lists_all_organizations(self):
+        import json
+
+        usn = Organization.objects.create(name="ИП на УСН", vat_payer=False, default_vat_rate="none")
+        payer = Organization.objects.create(name="ООО с НДС", vat_payer=True, default_vat_rate="10")
+        resp = self.client.get(reverse("invoice_create"))
+        vat_map = json.loads(resp.context["org_vat_json"])
+        self.assertEqual(vat_map[str(usn.pk)], {"charges": False, "rate": "none"})
+        self.assertEqual(vat_map[str(payer.pk)], {"charges": True, "rate": "10"})
+
+    def test_vat_for_rules(self):
+        usn = Organization(vat_payer=False, default_vat_rate="20")
+        payer = Organization(vat_payer=True, default_vat_rate="20")
+        self.assertEqual(usn.vat_for("20"), "none")
+        self.assertEqual(payer.vat_for("10"), "10")
+        self.assertEqual(payer.vat_for(""), "20")
+
+    def test_new_product_gets_org_rate(self):
+        """Новый товар получает ставку фирмы, а не жёсткие 20%."""
+        Organization.objects.create(name="ИП на УСН", vat_payer=False, default_vat_rate="none",
+                                    is_default=True)
+        resp = self.client.get(reverse("product_create"))
+        self.assertEqual(resp.context["form"].initial["vat_rate"], "none")
+
+        resp = self.client.post(reverse("api_product_quick_create"), {"name": "Новая услуга"})
+        self.assertEqual(Product.objects.get(name="Новая услуга").vat_rate, "none")
+        self.assertEqual(resp.json()["product"]["vat_rate"], "none")
+
+
+class DocumentNumberDateTests(TestCase):
+    """Номер, дата и время документа в заголовке; защита от двойного сохранения."""
+
+    def setUp(self):
+        self.unit = Unit.objects.create(name="шт")
+        self.org = Organization.objects.create(name="Орг", is_default=True)
+        self.wh = Warehouse.objects.create(name="Основной", is_default=True)
+        self.customer = Counterparty.objects.create(name="Клиент", partner_type=Counterparty.TYPE_CUSTOMER)
+        self.product = Product.objects.create(name="Товар", unit=self.unit, sale_price=490)
+        self.user = User.objects.create_user("m", password="pass12345")
+        self.user.groups.add(Group.objects.get(name=roles.ROLE_MANAGER))
+        self.client.login(username="m", password="pass12345")
+
+    def _data(self, **extra):
+        data = {
+            "date": "2026-09-10", "time": "", "number": "",
+            "organization": self.org.pk, "warehouse": self.wh.pk,
+            "customer": self.customer.pk, "contract": "", "due_date": "", "comment": "",
+            "action": "save",
+            "lines-TOTAL_FORMS": "1", "lines-INITIAL_FORMS": "0",
+            "lines-MIN_NUM_FORMS": "0", "lines-MAX_NUM_FORMS": "1000",
+            "lines-0-product": self.product.pk, "lines-0-quantity": "1",
+            "lines-0-price": "490", "lines-0-vat_rate": "none",
+        }
+        data.update(extra)
+        return data
+
+    def test_empty_number_assigned_automatically(self):
+        self.client.post(reverse("invoice_create"), self._data())
+        self.assertEqual(Invoice.objects.get().number, "00001")
+
+    def test_manual_number_date_and_time_saved(self):
+        resp = self.client.post(reverse("invoice_create"),
+                                self._data(number="А-17", date="2026-08-01", time="14:35"))
+        self.assertEqual(resp.status_code, 302)
+        invoice = Invoice.objects.get()
+        self.assertEqual(invoice.number, "А-17")
+        self.assertEqual(str(invoice.date), "2026-08-01")
+        self.assertEqual(invoice.time.strftime("%H:%M"), "14:35")
+
+    def test_number_editable_on_existing_document(self):
+        self.client.post(reverse("invoice_create"), self._data())
+        invoice = Invoice.objects.get()
+        self.client.post(reverse("invoice_edit", args=[invoice.pk]), self._data(number="00099"))
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.number, "00099")
+
+    def test_duplicate_number_rejected(self):
+        self.client.post(reverse("invoice_create"), self._data(number="00005"))
+        resp = self.client.post(reverse("invoice_create"), self._data(number="00005"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "уже есть в 2026 году")
+        self.assertEqual(Invoice.objects.count(), 1)
+
+    def test_auto_number_continues_after_manual(self):
+        """Вписали вручную 00007 — следующий автономер будет 00008, а не 00001."""
+        self.client.post(reverse("invoice_create"), self._data(number="00007"))
+        self.client.post(reverse("invoice_create"), self._data())
+        self.assertEqual(sorted(Invoice.objects.values_list("number", flat=True)), ["00007", "00008"])
+
+    def test_auto_number_skips_taken(self):
+        """Счётчик отстал от ручного номера — занятый номер пропускается."""
+        from apps.core.models import DocumentNumber
+
+        Invoice.objects.create(organization=self.org, warehouse=self.wh, customer=self.customer,
+                               number="00001")
+        DocumentNumber.objects.filter(organization=self.org).update(last_number=0)
+        second = Invoice.objects.create(organization=self.org, warehouse=self.wh, customer=self.customer)
+        self.assertEqual(second.number, "00002")
+
+    def test_time_defaults_when_not_sent(self):
+        data = self._data()
+        del data["time"]
+        self.client.post(reverse("invoice_create"), data)
+        self.assertIsNotNone(Invoice.objects.get().time)
+
+    def test_double_submit_creates_one_invoice(self):
+        """Двойной клик: та же форма с тем же токеном — второй счёт не создаётся."""
+        data = self._data(submit_token="tok-123")
+        first = self.client.post(reverse("invoice_create"), data)
+        second = self.client.post(reverse("invoice_create"), data)
+        self.assertEqual(Invoice.objects.count(), 1)
+        self.assertEqual(second.status_code, 302)
+        self.assertEqual(second.url, first.url)   # ведёт на уже созданный счёт
+
+    def test_new_form_has_token_and_heading_fields(self):
+        resp = self.client.get(reverse("invoice_create"))
+        self.assertContains(resp, 'name="submit_token"')
+        self.assertContains(resp, 'id="doc-form"')
+        self.assertContains(resp, 'name="number"')
+        self.assertContains(resp, 'name="time"')
+        self.assertContains(resp, 'placeholder="авто"')
+
+    def test_adjustment_series_separate_by_kind(self):
+        """У оприходований и списаний свои серии: одинаковый номер допустим."""
+        from apps.inventory.models import StockAdjustment
+
+        StockAdjustment.objects.create(kind=StockAdjustment.KIND_INCOME, organization=self.org,
+                                       warehouse=self.wh, number="00003")
+        other = StockAdjustment(kind=StockAdjustment.KIND_EXPENSE, organization=self.org, warehouse=self.wh)
+        from apps.inventory.forms import AdjustmentForm
+
+        form = AdjustmentForm(data={"date": "2026-09-10", "number": "00003", "time": "",
+                                    "organization": self.org.pk, "warehouse": self.wh.pk,
+                                    "reason": "", "comment": ""}, instance=other)
+        self.assertTrue(form.is_valid(), form.errors)

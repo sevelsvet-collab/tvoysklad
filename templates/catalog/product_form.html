@@ -54,7 +54,19 @@
   </div>
   <div class="mt-3">
     <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Сохранить</button>
-    <a href="{% url 'product_list' %}" class="btn btn-outline-secondary">Закрыть</a>
+    {% if not request.GET.embed %}<a href="{% url 'product_list' %}" class="btn btn-outline-secondary">Закрыть</a>{% endif %}
   </div>
 </form>
+{% if request.GET.embed and request.GET.saved and object %}
+<script>
+  // Карточка открыта из документа: сообщаем ему, какой товар сохранён —
+  // документ подставит товар в строку и закроет окно.
+  if (window.parent !== window) {
+    window.parent.postMessage(
+      { type: 'entity-saved', model: 'product', id: {{ object.pk }} },
+      window.location.origin
+    );
+  }
+</script>
+{% endif %}
 {% endblock %}

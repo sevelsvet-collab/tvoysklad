@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 
-from apps.core.forms import BootstrapFormMixin, SkipEmptyLineMixin
+from apps.core.forms import DocumentHeaderMixin, BootstrapFormMixin, SkipEmptyLineMixin
 from apps.core.models import Organization, Warehouse
 from apps.partners.models import Counterparty
 
@@ -33,10 +33,10 @@ class _HeaderDefaultsMixin:
                 self.fields["warehouse"].initial = wh
 
 
-class InvoiceForm(_HeaderDefaultsMixin, BootstrapFormMixin, forms.ModelForm):
+class InvoiceForm(DocumentHeaderMixin, _HeaderDefaultsMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Invoice
-        fields = ["date", "organization", "warehouse", "customer", "contract", "due_date", "comment"]
+        fields = ["date", "number", "time", "organization", "warehouse", "customer", "contract", "due_date", "comment"]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "due_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
@@ -66,10 +66,10 @@ InvoiceLineFormSet = inlineformset_factory(
 )
 
 
-class ShipmentForm(_HeaderDefaultsMixin, BootstrapFormMixin, forms.ModelForm):
+class ShipmentForm(DocumentHeaderMixin, _HeaderDefaultsMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Shipment
-        fields = ["date", "organization", "warehouse", "customer", "comment"]
+        fields = ["date", "number", "time", "organization", "warehouse", "customer", "comment"]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "comment": forms.Textarea(attrs={"rows": 2}),
@@ -92,10 +92,10 @@ ShipmentLineFormSet = inlineformset_factory(
 )
 
 
-class CustomerReturnForm(_HeaderDefaultsMixin, BootstrapFormMixin, forms.ModelForm):
+class CustomerReturnForm(DocumentHeaderMixin, _HeaderDefaultsMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = CustomerReturn
-        fields = ["date", "organization", "warehouse", "customer", "comment"]
+        fields = ["date", "number", "time", "organization", "warehouse", "customer", "comment"]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "comment": forms.Textarea(attrs={"rows": 2}),

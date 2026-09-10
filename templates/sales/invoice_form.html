@@ -2,12 +2,12 @@
 {% load static %}
 {% load humanize %}
 {% block title %}Счёт покупателю — Склад{% endblock %}
-{% block page_title %}{% if object %}Счёт покупателю № {{ object.number }}{% else %}Новый счёт покупателю{% endif %}{% endblock %}
+{% block page_title %}{% include "documents/_doc_heading.html" with title="Счёт покупателю" %}{% endblock %}
 {% block content %}
 {% url 'api_counterparty_search' as cp_search_url %}
 {% url 'api_counterparty_quick_create' as cp_create_url %}
 <form id="doc-action" method="post">{% csrf_token %}</form>
-<form method="post">
+<form method="post" id="doc-form">
   {% csrf_token %}
   <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
     {% url 'invoice_list' as list_url %}
@@ -38,7 +38,6 @@
   <div class="card mb-3">
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-md-3"><label class="form-label">Дата</label>{{ form.date }}</div>
         <div class="col-md-5"><label class="form-label">Организация</label>
           <div class="input-group">
             {{ form.organization }}

@@ -196,6 +196,11 @@ class AdjustmentEditMixin(LineDocumentMixin):
 class AdjustmentCreateView(RoleRequiredMixin, AdjustmentEditMixin, CreateView):
     allowed_roles = EDIT_ROLES
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.instance.kind = self.kind  # серия номеров приходов и расходов своя
+        return form
+
     def form_valid(self, form):
         form.instance.kind = self.kind
         return super().form_valid(form)

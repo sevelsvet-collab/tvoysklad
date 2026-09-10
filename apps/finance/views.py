@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import DecimalField, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect
@@ -8,7 +9,7 @@ from django.urls import reverse, reverse_lazy
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, ListView, UpdateView
 
-from apps.core import roles
+from apps.core import roles, submit_once
 from apps.core.constants import DOC_POSTED
 from apps.core.permissions import RoleRequiredMixin
 from apps.partners.models import Counterparty
@@ -86,15 +87,24 @@ class PaymentEditBase(RoleRequiredMixin):
         kind = self.object.kind if self.object else self.kind
         ctx["is_incoming"] = kind == Payment.KIND_IN
         ctx["kind"] = kind
+        ctx["submit_token"] = submit_once.new_token()
         return ctx
 
+    @transaction.atomic
     def form_valid(self, form):
+        creating = form.instance.pk is None
+        if creating:
+            duplicate = submit_once.claim(self.request)
+            if duplicate:
+                return duplicate   # повторная отправка — платёж уже создан
         response = super().form_valid(form)
         if self.request.POST.get("action") == "save_post":
             self.object.post()
             messages.success(self.request, f"{self.object} — проведён")
         else:
             messages.success(self.request, f"{self.object} — сохранён")
+        if creating:
+            submit_once.remember(self.request, self.get_success_url())
         return response
 
 
@@ -112,6 +122,11 @@ class PaymentCreateView(PaymentEditBase, CreateView):
         if partner:
             initial["counterparty"] = partner
         return initial
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.instance.kind = self.kind  # серия номеров входящих и исходящих своя
+        return form
 
     def form_valid(self, form):
         form.instance.kind = self.kind
@@ -271,6 +286,24 @@ class CorrectionListView(RoleRequiredMixin, ListView):
 
 class _CorrectionEditMixin(RoleRequiredMixin):
     allowed_roles = MONEY_ROLES
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["submit_token"] = submit_once.new_token()
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        # Повторная отправка той же формы создания — корректировка уже есть
+        with transaction.atomic():
+            creating = "pk" not in kwargs
+            if creating:
+                duplicate = submit_once.claim(request)
+                if duplicate:
+                    return duplicate
+            response = super().post(request, *args, **kwargs)
+            if creating and getattr(self, "object", None) is not None and self.object.pk:
+                submit_once.remember(request, self.get_success_url())
+            return response
 
     def form_valid(self, form):
         response = super().form_valid(form)

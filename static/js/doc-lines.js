@@ -65,6 +65,44 @@
     var tc = root.querySelector('.total-count'); if (tc) tc.textContent = count;
   }
 
+  // ---------- НДС из организации документа ----------
+
+  // { charges: выставляет ли фирма НДС, rate: её ставка } для выбранной организации
+  function orgVat(root) {
+    var map = {};
+    try { map = JSON.parse(root.dataset.orgVat || '{}'); } catch (e) { map = {}; }
+    var select = document.querySelector('[name=' + (root.dataset.orgField || 'organization') + ']');
+    var info = select && map[select.value];
+    if (info) return info;
+    var fallback = root.dataset.defaultVat || '20';
+    return { charges: fallback !== 'none', rate: fallback };
+  }
+
+  // Ставка строки: неплательщик — «Без НДС», плательщик — ставка товара
+  function lineVat(root, productVat) {
+    var org = orgVat(root);
+    if (!org.charges) return 'none';
+    return productVat || org.rate;
+  }
+
+  function setRowVat(tr, rate) {
+    var vatSel = tr.querySelector('select[name$="-vat_rate"]');
+    if (vatSel && rate) vatSel.value = rate;
+  }
+
+  // Сменили организацию — пересчитываем ставки во всех строках
+  function applyOrgVat(root) {
+    var org = orgVat(root);
+    root.dataset.defaultVat = org.charges ? org.rate : 'none';
+    root.querySelectorAll('.line-row').forEach(function (tr) {
+      if (!isActiveRow(tr)) return;
+      var ac = tr.querySelector('.ac');
+      var productVat = ac && ac.dataset.productVat;
+      setRowVat(tr, rowHasProduct(tr) ? lineVat(root, productVat) : root.dataset.defaultVat);
+    });
+    recalc(root);
+  }
+
   // ---------- Остаток / Доступно ----------
 
   function warehouseSelect(root) {
@@ -155,24 +193,62 @@
     };
   }
 
+  // ---------- Товар в строке: ссылка вместо поля ввода ----------
+
+  // Выбранный товар показываем ссылкой на карточку, пустую строку — полем поиска.
+  // Так название нельзя случайно «исправить» прямо в строке документа.
+  function syncProductView(tr) {
+    var view = tr.querySelector('.line-product-view');
+    var input = tr.querySelector('.line-product-text');
+    if (!view || !input) return;
+    var chosen = rowHasProduct(tr);
+    if (chosen) {
+      var link = view.querySelector('.line-product-link');
+      if (link && input.value) link.textContent = input.value;
+    }
+    view.classList.toggle('d-none', !chosen);
+    input.classList.toggle('d-none', chosen);
+  }
+
+  function bindProductView(tr) {
+    var input = tr.querySelector('.line-product-text');
+    var change = tr.querySelector('.line-product-change');
+    if (!input) return;
+    if (change) change.addEventListener('click', function () {
+      // «Заменить товар»: открываем поиск; прежний товар остаётся, пока не выбран новый
+      tr.querySelector('.line-product-view').classList.add('d-none');
+      input.classList.remove('d-none');
+      input.value = '';
+      input.focus();
+    });
+    input.addEventListener('blur', function () {
+      // Ушли из поиска, ничего не выбрав, — возвращаем ссылку на прежний товар
+      setTimeout(function () {
+        if (document.activeElement !== input) syncProductView(tr);
+      }, 200);
+    });
+    syncProductView(tr);
+  }
+
   // ---------- Строка ----------
 
   function bindRow(tr, root) {
     var price = tr.querySelector('.line-price');
     var qty = tr.querySelector('.line-qty');
     var onBaseChange = bindDiscount(tr, root);
+    bindProductView(tr);
 
     var ac = tr.querySelector('.ac');
     if (ac) {
+      ac.addEventListener('ac:label', function () { syncProductView(tr); });
       ac.addEventListener('ac:select', function (e) {
+        syncProductView(tr);
         var item = e.detail || {};
         if (price && item.price && !parseFloat(price.value)) price.value = item.price;
         if (qty && !parseFloat(qty.value)) qty.value = 1;
-        // Заполняем НДС из товара (если передан)
-        if (item.vat_rate !== undefined && item.vat_rate !== null) {
-          var vatSel = tr.querySelector('select[name$="-vat_rate"]');
-          if (vatSel) vatSel.value = item.vat_rate;
-        }
+        // НДС: у неплательщика — «Без НДС», у плательщика — ставка товара
+        ac.dataset.productVat = item.vat_rate || '';
+        setRowVat(tr, lineVat(root, item.vat_rate));
         renderRowStock(tr, item.stock, item.available, item.unit);
         recalc(root);
         ensureTrailingRow(root, true);
@@ -242,5 +318,8 @@
 
     var wh = warehouseSelect(root);
     if (wh) wh.addEventListener('change', function () { refreshStocks(root); });
+
+    var orgSelect = document.querySelector('[name=' + (root.dataset.orgField || 'organization') + ']');
+    if (orgSelect) orgSelect.addEventListener('change', function () { applyOrgVat(root); });
   });
 })();

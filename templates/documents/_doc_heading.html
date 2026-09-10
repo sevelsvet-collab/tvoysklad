@@ -1,0 +1,16 @@
+{% comment %}
+Заголовок документа как в МойСклад: «Счёт покупателю № [номер] от [дата] [время]».
+Поля принадлежат основной форме документа (form="doc-form"). Ожидает: title, form.
+{% endcomment %}
+<span class="doc-heading">
+  <span>{{ title }} №</span>
+  {{ form.number }}
+  <span>от</span>
+  {{ form.date }}
+  {{ form.time }}
+</span>
+{% if form.number.errors or form.date.errors or form.time.errors %}
+<span class="d-block text-danger small fw-normal mt-1">
+  {% for e in form.number.errors %}{{ e }} {% endfor %}{% for e in form.date.errors %}Дата: {{ e }} {% endfor %}{% for e in form.time.errors %}Время: {{ e }}{% endfor %}
+</span>
+{% endif %}

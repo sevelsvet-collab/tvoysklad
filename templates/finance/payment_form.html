@@ -1,15 +1,12 @@
 {% extends "base.html" %}
 {% load humanize %}
 {% block title %}Платёж — Склад{% endblock %}
-{% block page_title %}
-  {% if object %}{{ object.get_kind_display }} № {{ object.number }}
-  {% else %}{% if is_incoming %}Новый входящий платёж{% else %}Новый исходящий платёж{% endif %}{% endif %}
-{% endblock %}
+{% block page_title %}{% if object %}{% include "documents/_doc_heading.html" with title=object.get_kind_display %}{% elif is_incoming %}{% include "documents/_doc_heading.html" with title="Входящий платёж" %}{% else %}{% include "documents/_doc_heading.html" with title="Исходящий платёж" %}{% endif %}{% endblock %}
 {% block content %}
 {% url 'api_counterparty_search' as cp_search_url %}
 {% url 'api_counterparty_quick_create' as cp_create_url %}
 <form id="doc-action" method="post">{% csrf_token %}</form>
-<form method="post">
+<form method="post" id="doc-form">
   {% csrf_token %}
   <div class="mb-3">
     {% url 'payment_list' as list_url %}
@@ -19,7 +16,6 @@
   <div class="card mb-3" style="max-width:760px;">
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-md-4"><label class="form-label">Дата</label>{{ form.date }}</div>
         <div class="col-md-8"><label class="form-label">Организация</label>{{ form.organization }}</div>
         <div class="col-md-6"><label class="form-label">{% if is_incoming %}Счёт зачисления{% else %}Счёт списания{% endif %}</label>{{ form.account }}
           {% if form.account.errors %}<div class="text-danger small">{{ form.account.errors.0 }}</div>{% endif %}</div>

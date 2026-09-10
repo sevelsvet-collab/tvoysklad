@@ -7,15 +7,28 @@
 <td class="line-num text-center text-muted align-middle" style="width:30px;"></td>
 <td style="min-width:240px;">
   {{ form.id }}
-  <div class="ac"
+  {% comment %}
+  Выбранный товар показывается ссылкой: по клику — карточка товара во всплывающем
+  окне. «Создать новый товар» тоже открывает карточку, а не создаёт товар молча.
+  {% endcomment %}
+  <div class="ac line-ac"
        data-ac-url="{% url 'api_product_search' %}"
        data-ac-create-url="{% url 'api_product_quick_create' %}"
+       data-ac-create-page="{% url 'product_create' %}"
+       data-edit-base="{% url 'product_edit' 0 %}"
+       data-product-vat="{% if form.instance.product_id %}{{ form.instance.product.vat_rate }}{% endif %}"
        data-ac-create-label="Создать новый товар"
        data-ac-params='{"price": "{{ price_source|default:"purchase" }}"}'
        data-ac-dyn='{"warehouse": "[name={{ warehouse_field|default:"warehouse" }}]"}'>
     <input type="hidden" name="{{ form.product.html_name }}" id="{{ form.product.auto_id }}"
            value="{{ form.product.value|default_if_none:'' }}" class="ac-value line-product">
-    <input type="text" class="form-control form-control-sm ac-input line-product-text"
+    <div class="line-product-view{% if not form.instance.product_id %} d-none{% endif %}">
+      <a href="#" class="line-product-link" title="Открыть карточку товара">{% if form.instance.product_id %}{{ form.instance.product.name }}{% if form.instance.product.article %} ({{ form.instance.product.article }}){% endif %}{% endif %}</a>
+      <button type="button" class="btn btn-link btn-sm p-0 line-product-change" title="Заменить товар в строке">
+        <i class="bi bi-arrow-left-right"></i>
+      </button>
+    </div>
+    <input type="text" class="form-control form-control-sm ac-input line-product-text{% if form.instance.product_id %} d-none{% endif %}"
            placeholder="Добавить позицию — наименование, код, штрихкод или артикул"
            value="{% if form.instance.product_id %}{{ form.instance.product.name }}{% if form.instance.product.article %} ({{ form.instance.product.article }}){% endif %}{% endif %}">
   </div>

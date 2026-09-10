@@ -47,6 +47,7 @@
       this.menu.className = 'ac-menu d-none';
       document.body.appendChild(this.menu);
 
+      root._ac = this;  // для всплывающей карточки: подставить/обновить значение
       this.bind();
 
       // Значение предзаполнено (напр. из ?partner=), но текст пуст — подтянуть имя
@@ -55,17 +56,42 @@
       }
     }
 
+    async fetchById(id) {
+      const p = this.params();
+      p.delete('q');
+      p.set('id', id);
+      const sep = this.url.includes('?') ? '&' : '?';
+      const resp = await fetch(this.url + sep + p.toString());
+      const json = await resp.json();
+      return (json.results || [])[0] || null;
+    }
+
     async prefillLabel(id) {
       try {
-        const sep = this.url.includes('?') ? '&' : '?';
-        const resp = await fetch(this.url + sep + 'id=' + encodeURIComponent(id));
-        const json = await resp.json();
-        const item = (json.results || [])[0];
-        if (item) {
-          this.textInput.value = item.name || item.label || '';
-          this.lastLabel = this.textInput.value;
-        }
+        const item = await this.fetchById(id);
+        if (item) this.setLabel(item);
       } catch (e) { /* тихо: поле останется пустым, значение всё равно сохранится */ }
+    }
+
+    setLabel(item) {
+      this.textInput.value = item.label || item.name || '';
+      this.lastLabel = this.textInput.value;
+      this.root.dispatchEvent(new CustomEvent('ac:label', { detail: item, bubbles: true }));
+    }
+
+    // Выбрать значение по id — например, товар, только что созданный в карточке
+    async selectById(id) {
+      const item = await this.fetchById(id);
+      if (item) this.choose(item);
+    }
+
+    // Обновить подпись выбранного значения (переименовали в карточке)
+    async refreshLabel() {
+      if (!this.valueInput.value) return;
+      try {
+        const item = await this.fetchById(this.valueInput.value);
+        if (item) this.setLabel(item);
+      } catch (e) { /* подпись останется прежней */ }
     }
 
     bind() {
@@ -215,6 +241,12 @@
     async createNew() {
       const name = this.textInput.value.trim();
       if (!name) return;
+      if (this.root.dataset.acCreatePage) {
+        // Создание через полную карточку во всплывающем окне (entity-modal.js)
+        this.close();
+        this.root.dispatchEvent(new CustomEvent('ac:create', { detail: { name }, bubbles: true }));
+        return;
+      }
       const body = new URLSearchParams({ name, ...this.staticParams });
       Object.entries(this.dynParams).forEach(([key, selector]) => {
         const el = document.querySelector(selector);

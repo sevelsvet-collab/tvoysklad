@@ -57,12 +57,18 @@ def product_search(request):
     warehouse_id = request.GET.get("warehouse") or None
     price_source = request.GET.get("price", "purchase")
 
-    qs = Product.objects.filter(is_active=True).select_related("unit")
-    if q:
-        qs = qs.filter(
-            Q(name__icontains=q) | Q(article__icontains=q)
-            | Q(code__icontains=q) | Q(barcode__icontains=q)
-        )
+    product_id = request.GET.get("id", "")
+    if product_id.isdigit():
+        # Точный товар по id — для подписи строки документа после правки
+        # в карточке. Архивный тоже отдаём: он может стоять в старых документах.
+        qs = Product.objects.filter(pk=product_id).select_related("unit")
+    else:
+        qs = Product.objects.filter(is_active=True).select_related("unit")
+        if q:
+            qs = qs.filter(
+                Q(name__icontains=q) | Q(article__icontains=q)
+                | Q(code__icontains=q) | Q(barcode__icontains=q)
+            )
     products = list(qs.order_by("name")[:SEARCH_LIMIT])
 
     stocks = _stock_map([p.pk for p in products], warehouse_id)
@@ -138,8 +144,12 @@ def product_quick_create(request):
 
     price = _decimal(request.POST.get("price_value"))
     price_source = request.POST.get("price", "purchase")
+    from apps.core.models import Organization
+
+    org = Organization.get_default()
     product = Product.objects.create(
         name=name, unit=unit, group=group,
+        vat_rate=org.line_vat_default if org else Product._meta.get_field("vat_rate").default,
         sale_price=price if price_source == "sale" else Decimal("0"),
         purchase_price=price if price_source != "sale" else Decimal("0"),
     )

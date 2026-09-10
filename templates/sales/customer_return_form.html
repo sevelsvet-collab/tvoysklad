@@ -2,12 +2,12 @@
 {% load static %}
 {% load humanize %}
 {% block title %}Возврат покупателя — Склад{% endblock %}
-{% block page_title %}{% if object %}Возврат покупателя № {{ object.number }}{% else %}Новый возврат покупателя{% endif %}{% endblock %}
+{% block page_title %}{% include "documents/_doc_heading.html" with title="Возврат покупателя" %}{% endblock %}
 {% block content %}
 {% url 'api_counterparty_search' as cp_search_url %}
 {% url 'api_counterparty_quick_create' as cp_create_url %}
 <form id="doc-action" method="post">{% csrf_token %}</form>
-<form method="post">
+<form method="post" id="doc-form">
   {% csrf_token %}
   <div class="mb-3">
     {% url 'customer_return_list' as list_url %}
@@ -17,7 +17,6 @@
   <div class="card mb-3">
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-md-3"><label class="form-label">Дата</label>{{ form.date }}</div>
         <div class="col-md-5"><label class="form-label">Организация</label>{{ form.organization }}</div>
         <div class="col-md-4"><label class="form-label">На склад</label>{{ form.warehouse }}</div>
         <div class="col-md-6"><label class="form-label">Покупатель</label>

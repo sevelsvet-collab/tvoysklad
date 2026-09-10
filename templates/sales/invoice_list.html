@@ -96,7 +96,7 @@
             <td data-col="number" class="fw-semibold text-primary">{{ inv.number }}</td>
             <td data-col="time" class="text-muted">
               {{ inv.date|date:"d.m" }}<br>
-              <span style="font-size:11px;">{{ inv.created_at|date:"H:i" }}</span>
+              <span style="font-size:11px;">{{ inv.time|time:"H:i" }}</span>
             </td>
             <td data-col="customer">{{ inv.customer.name }}</td>
             <td data-col="organization" class="text-muted">{{ inv.organization.name }}</td>

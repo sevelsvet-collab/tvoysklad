@@ -1,13 +1,10 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}{% if is_income %}Оприходование{% else %}Списание{% endif %} — Склад{% endblock %}
-{% block page_title %}
-  {% if object %}{{ object.get_kind_display }} № {{ object.number }}
-  {% else %}{% if is_income %}Новое оприходование{% else %}Новое списание{% endif %}{% endif %}
-{% endblock %}
+{% block page_title %}{% if object %}{% include "documents/_doc_heading.html" with title=object.get_kind_display %}{% elif is_income %}{% include "documents/_doc_heading.html" with title="Оприходование" %}{% else %}{% include "documents/_doc_heading.html" with title="Списание" %}{% endif %}{% endblock %}
 {% block content %}
 <form id="doc-action" method="post">{% csrf_token %}</form>
-<form method="post">
+<form method="post" id="doc-form">
   {% csrf_token %}
   <div class="mb-3">
     {% if is_income %}{% url 'adjustment_list_income' as list_url %}{% else %}{% url 'adjustment_list_expense' as list_url %}{% endif %}
@@ -17,9 +14,6 @@
   <div class="card mb-3">
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-md-3">
-          <label class="form-label">Дата</label>{{ form.date }}
-        </div>
         <div class="col-md-4">
           <label class="form-label">Организация</label>{{ form.organization }}
         </div>

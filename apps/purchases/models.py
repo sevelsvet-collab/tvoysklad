@@ -11,7 +11,7 @@ from apps.core.constants import (
     line_total,
     vat_amount,
 )
-from apps.core.models import DocumentNumber
+from apps.core.models import assign_document_number, current_time
 from apps.inventory.posting import PostableMixin
 
 
@@ -22,6 +22,7 @@ class Receipt(PostableMixin, models.Model):
 
     number = models.CharField("Номер", max_length=32, blank=True)
     date = models.DateField("Дата", default=timezone.localdate)
+    time = models.TimeField("Время", default=current_time)
     organization = models.ForeignKey("core.Organization", on_delete=models.PROTECT, verbose_name="Организация")
     warehouse = models.ForeignKey("core.Warehouse", on_delete=models.PROTECT, verbose_name="Склад")
     supplier = models.ForeignKey(
@@ -38,14 +39,13 @@ class Receipt(PostableMixin, models.Model):
     class Meta:
         verbose_name = "Приёмка"
         verbose_name_plural = "Приёмки"
-        ordering = ["-date", "-id"]
+        ordering = ["-date", "-time", "-id"]
 
     def __str__(self):
         return f"Приёмка № {self.number} от {self.date:%d.%m.%Y}"
 
     def save(self, *args, **kwargs):
-        if not self.number and self.organization_id:
-            self.number = DocumentNumber.next_number(self.organization, self.DOC_TYPE)
+        assign_document_number(self, self.DOC_TYPE)
         super().save(*args, **kwargs)
 
     def build_specs(self):
@@ -109,6 +109,7 @@ class SupplierReturn(PostableMixin, models.Model):
 
     number = models.CharField("Номер", max_length=32, blank=True)
     date = models.DateField("Дата", default=timezone.localdate)
+    time = models.TimeField("Время", default=current_time)
     organization = models.ForeignKey("core.Organization", on_delete=models.PROTECT, verbose_name="Организация")
     warehouse = models.ForeignKey("core.Warehouse", on_delete=models.PROTECT, verbose_name="Со склада")
     supplier = models.ForeignKey(
@@ -125,14 +126,13 @@ class SupplierReturn(PostableMixin, models.Model):
     class Meta:
         verbose_name = "Возврат поставщику"
         verbose_name_plural = "Возвраты поставщикам"
-        ordering = ["-date", "-id"]
+        ordering = ["-date", "-time", "-id"]
 
     def __str__(self):
         return f"Возврат поставщику № {self.number} от {self.date:%d.%m.%Y}"
 
     def save(self, *args, **kwargs):
-        if not self.number and self.organization_id:
-            self.number = DocumentNumber.next_number(self.organization, self.DOC_TYPE)
+        assign_document_number(self, self.DOC_TYPE)
         super().save(*args, **kwargs)
 
     def build_specs(self):

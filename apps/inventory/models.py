@@ -4,7 +4,7 @@ from django.db import models
 from django.utils import timezone
 
 from apps.core.constants import DOC_DRAFT, DOC_STATUS_CHOICES
-from apps.core.models import DocumentNumber
+from apps.core.models import assign_document_number, current_time
 from apps.inventory.posting import PostableMixin
 
 
@@ -72,6 +72,7 @@ class Transfer(PostableMixin, models.Model):
 
     number = models.CharField("Номер", max_length=32, blank=True)
     date = models.DateField("Дата", default=timezone.localdate)
+    time = models.TimeField("Время", default=current_time)
     organization = models.ForeignKey("core.Organization", on_delete=models.PROTECT, verbose_name="Организация")
     warehouse_from = models.ForeignKey(
         "core.Warehouse", on_delete=models.PROTECT, related_name="transfers_out", verbose_name="Склад-отправитель",
@@ -86,14 +87,13 @@ class Transfer(PostableMixin, models.Model):
     class Meta:
         verbose_name = "Перемещение"
         verbose_name_plural = "Перемещения"
-        ordering = ["-date", "-id"]
+        ordering = ["-date", "-time", "-id"]
 
     def __str__(self):
         return f"Перемещение № {self.number} от {self.date:%d.%m.%Y}"
 
     def save(self, *args, **kwargs):
-        if not self.number and self.organization_id:
-            self.number = DocumentNumber.next_number(self.organization, self.DOC_TYPE)
+        assign_document_number(self, self.DOC_TYPE)
         super().save(*args, **kwargs)
 
     def build_specs(self):
@@ -139,6 +139,7 @@ class StockAdjustment(PostableMixin, models.Model):
     kind = models.CharField("Вид", max_length=16, choices=KIND_CHOICES)
     number = models.CharField("Номер", max_length=32, blank=True)
     date = models.DateField("Дата", default=timezone.localdate)
+    time = models.TimeField("Время", default=current_time)
     organization = models.ForeignKey("core.Organization", on_delete=models.PROTECT, verbose_name="Организация")
     warehouse = models.ForeignKey("core.Warehouse", on_delete=models.PROTECT, verbose_name="Склад")
     reason = models.CharField("Причина", max_length=255, blank=True)
@@ -149,7 +150,7 @@ class StockAdjustment(PostableMixin, models.Model):
     class Meta:
         verbose_name = "Оприходование/Списание"
         verbose_name_plural = "Оприходования и списания"
-        ordering = ["-date", "-id"]
+        ordering = ["-date", "-time", "-id"]
 
     def __str__(self):
         return f"{self.get_kind_display()} № {self.number} от {self.date:%d.%m.%Y}"
@@ -158,8 +159,7 @@ class StockAdjustment(PostableMixin, models.Model):
     DOC_TYPE = property(lambda self: f"adjustment_{self.kind}")
 
     def save(self, *args, **kwargs):
-        if not self.number and self.organization_id:
-            self.number = DocumentNumber.next_number(self.organization, f"adjustment_{self.kind}")
+        assign_document_number(self, f"adjustment_{self.kind}", kind=self.kind)
         super().save(*args, **kwargs)
 
     def build_specs(self):

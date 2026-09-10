@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 
-from apps.core.forms import BootstrapFormMixin, SkipEmptyLineMixin
+from apps.core.forms import DocumentHeaderMixin, BootstrapFormMixin, SkipEmptyLineMixin
 from apps.core.models import Organization, Warehouse
 
 from .models import AdjustmentLine, StockAdjustment, Transfer, TransferLine
@@ -15,10 +15,10 @@ class _DefaultsMixin:
                 self.fields["organization"].initial = org
 
 
-class TransferForm(_DefaultsMixin, BootstrapFormMixin, forms.ModelForm):
+class TransferForm(DocumentHeaderMixin, _DefaultsMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Transfer
-        fields = ["date", "organization", "warehouse_from", "warehouse_to", "comment"]
+        fields = ["date", "number", "time", "organization", "warehouse_from", "warehouse_to", "comment"]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "comment": forms.Textarea(attrs={"rows": 2}),
@@ -47,10 +47,10 @@ TransferLineFormSet = inlineformset_factory(
 )
 
 
-class AdjustmentForm(_DefaultsMixin, BootstrapFormMixin, forms.ModelForm):
+class AdjustmentForm(DocumentHeaderMixin, _DefaultsMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = StockAdjustment
-        fields = ["date", "organization", "warehouse", "reason", "comment"]
+        fields = ["date", "number", "time", "organization", "warehouse", "reason", "comment"]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "comment": forms.Textarea(attrs={"rows": 2}),

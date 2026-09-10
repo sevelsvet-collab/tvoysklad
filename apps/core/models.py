@@ -92,6 +92,23 @@ class Organization(models.Model):
     def get_default(cls):
         return cls.objects.filter(is_active=True).order_by("-is_default", "name").first()
 
+    @property
+    def charges_vat(self):
+        """Выставляет ли фирма НДС. Неплательщик (УСН) или «Без НДС» — нет."""
+        return self.vat_payer and self.default_vat_rate != "none"
+
+    @property
+    def line_vat_default(self):
+        """Ставка для новой строки документа и нового товара."""
+        return self.default_vat_rate if self.charges_vat else "none"
+
+    def vat_for(self, product_rate):
+        """Ставка строки: у плательщика — из карточки товара (бывают товары
+        по 10%), у неплательщика — всегда «Без НДС»."""
+        if not self.charges_vat:
+            return "none"
+        return product_rate or self.default_vat_rate
+
 
 class Warehouse(models.Model):
     name = models.CharField("Наименование", max_length=255)
@@ -137,6 +154,21 @@ class DocumentNumber(models.Model):
         return f"{self.organization} / {self.doc_type} / {self.year}: {self.last_number}"
 
     @classmethod
+    def register_manual(cls, organization, doc_type, number):
+        """Номер введён вручную. Если он числовой и больше счётчика — двигаем
+        счётчик, чтобы автонумерация не выдала этот номер повторно."""
+        if not str(number).isdigit():
+            return
+        year = timezone.localdate().year
+        with transaction.atomic():
+            counter, _ = cls.objects.select_for_update().get_or_create(
+                organization=organization, doc_type=doc_type, year=year,
+            )
+            if int(number) > counter.last_number:
+                counter.last_number = int(number)
+                counter.save(update_fields=["last_number"])
+
+    @classmethod
     def next_number(cls, organization, doc_type):
         """Выдаёт следующий номер вида '00001' атомарно."""
         year = timezone.localdate().year
@@ -147,3 +179,47 @@ class DocumentNumber(models.Model):
             counter.last_number += 1
             counter.save(update_fields=["last_number"])
             return f"{counter.last_number:05d}"
+
+
+def current_time():
+    """Время документа по умолчанию — сейчас, без секундных долей."""
+    return timezone.localtime().time().replace(microsecond=0)
+
+
+def assign_document_number(doc, doc_type, **scope):
+    """Номер документа: введённый вручную сохраняем, пустой — присваиваем
+    следующий свободный в серии (организация + вид документа + год).
+
+    scope — дополнительное разделение серии (например, приход и расход
+    нумеруются отдельно: kind=...).
+    """
+    if not doc.organization_id:
+        return
+    if doc.number:
+        DocumentNumber.register_manual(doc.organization, doc_type, doc.number)
+        return
+    siblings = type(doc).objects.filter(
+        organization_id=doc.organization_id, date__year=doc.date.year, **scope,
+    ).exclude(pk=doc.pk)
+    while True:
+        number = DocumentNumber.next_number(doc.organization, doc_type)
+        if not siblings.filter(number=number).exists():  # вдруг занят вручную
+            doc.number = number
+            return
+
+
+class SubmitToken(models.Model):
+    """Одноразовый токен формы создания документа.
+
+    Двойной клик по «Сохранить» отправляет форму дважды. Второй запрос с тем же
+    токеном не создаёт документ, а ведёт на уже созданный. Уникальный индекс
+    срабатывает и при одновременных запросах.
+    """
+
+    token = models.CharField(max_length=64, unique=True)
+    url = models.CharField(max_length=512, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Токен отправки формы"
+        verbose_name_plural = "Токены отправки форм"

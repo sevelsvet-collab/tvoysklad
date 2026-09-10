@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 
-from apps.core.forms import BootstrapFormMixin, SkipEmptyLineMixin
+from apps.core.forms import DocumentHeaderMixin, BootstrapFormMixin, SkipEmptyLineMixin
 from apps.core.models import Organization, Warehouse
 from apps.partners.models import Counterparty
 
@@ -14,11 +14,11 @@ def _supplier_queryset():
     )
 
 
-class ReceiptForm(BootstrapFormMixin, forms.ModelForm):
+class ReceiptForm(DocumentHeaderMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Receipt
         fields = [
-            "date", "organization", "warehouse", "supplier",
+            "date", "number", "time", "organization", "warehouse", "supplier",
             "contract", "supplier_invoice", "comment",
         ]
         widgets = {
@@ -57,10 +57,10 @@ ReceiptLineFormSet = inlineformset_factory(
 )
 
 
-class SupplierReturnForm(BootstrapFormMixin, forms.ModelForm):
+class SupplierReturnForm(DocumentHeaderMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = SupplierReturn
-        fields = ["date", "organization", "warehouse", "supplier", "comment"]
+        fields = ["date", "number", "time", "organization", "warehouse", "supplier", "comment"]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "comment": forms.Textarea(attrs={"rows": 2}),

@@ -107,6 +107,13 @@ body { background: #fff; }
 .doc-table .ac-input { border-color: transparent; background: transparent; padding-left: .25rem; }
 .doc-table .line-row:hover .ac-input { border-color: #ced4da; background: #fff; }
 .doc-table .ac-input:focus { border-color: #86b7fe; background: #fff; }
+/* Выбранный товар в строке — ссылка на карточку (как в МойСклад) */
+.doc-table .line-product-view { display: flex; align-items: center; gap: .35rem; min-height: 31px; padding-left: .25rem; }
+.doc-table .line-product-link { text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
+.doc-table .line-product-link:hover { text-decoration: underline; }
+.doc-table .line-product-change { color: #6c757d; opacity: 0; transition: opacity .15s; }
+.doc-table .line-row:hover .line-product-change,
+.doc-table .line-product-change:focus { opacity: 1; }
 
 /* ---------- Живой поиск (автодополнение) ---------- */
 
@@ -158,3 +165,10 @@ body { background: #fff; }
   font-size: .88rem;
 }
 .ac-create:hover { background: #eef4f9; }
+
+/* Заголовок документа: «Счёт № [___] от [дата] [время]» (как в МойСклад) */
+.doc-heading { display: inline-flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.doc-heading .form-control { display: inline-block; font-size: .95rem; font-weight: 600; }
+.doc-heading .doc-number { width: 8.5rem; }
+.doc-heading .doc-date { width: 9.5rem; }
+.doc-heading .doc-time { width: 6.5rem; }

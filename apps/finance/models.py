@@ -5,7 +5,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from apps.core.constants import DOC_DRAFT, DOC_POSTED, DOC_STATUS_CHOICES
-from apps.core.models import DocumentNumber
+from apps.core.models import assign_document_number, current_time
 
 
 class Account(models.Model):
@@ -79,6 +79,7 @@ class Payment(models.Model):
     kind = models.CharField("Вид", max_length=16, choices=KIND_CHOICES)
     number = models.CharField("Номер", max_length=32, blank=True)
     date = models.DateField("Дата", default=timezone.localdate)
+    time = models.TimeField("Время", default=current_time)
     organization = models.ForeignKey("core.Organization", on_delete=models.PROTECT, verbose_name="Организация")
     account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name="Счёт/касса")
     counterparty = models.ForeignKey(
@@ -96,7 +97,7 @@ class Payment(models.Model):
     class Meta:
         verbose_name = "Платёж"
         verbose_name_plural = "Платежи"
-        ordering = ["-date", "-id"]
+        ordering = ["-date", "-time", "-id"]
 
     def __str__(self):
         return f"{self.get_kind_display()} № {self.number} от {self.date:%d.%m.%Y}"
@@ -106,8 +107,7 @@ class Payment(models.Model):
         return f"payment_{self.kind}"
 
     def save(self, *args, **kwargs):
-        if not self.number and self.organization_id:
-            self.number = DocumentNumber.next_number(self.organization, f"payment_{self.kind}")
+        assign_document_number(self, f"payment_{self.kind}", kind=self.kind)
         super().save(*args, **kwargs)
 
     @property
@@ -162,6 +162,7 @@ class AccountCorrection(models.Model):
 
     number = models.CharField("Номер", max_length=32, blank=True)
     date = models.DateField("Дата", default=timezone.localdate)
+    time = models.TimeField("Время", default=current_time)
     organization = models.ForeignKey("core.Organization", on_delete=models.PROTECT, verbose_name="Организация")
     account = models.ForeignKey(Account, on_delete=models.PROTECT, verbose_name="Счёт/касса", related_name="corrections")
     balance_before = models.DecimalField("Расчётный остаток", max_digits=15, decimal_places=2, default=0)
@@ -174,7 +175,7 @@ class AccountCorrection(models.Model):
     class Meta:
         verbose_name = "Корректировка остатка"
         verbose_name_plural = "Корректировки остатков"
-        ordering = ["-date", "-id"]
+        ordering = ["-date", "-time", "-id"]
 
     def __str__(self):
         return f"Корректировка остатка № {self.number} от {self.date:%d.%m.%Y}"
@@ -185,8 +186,7 @@ class AccountCorrection(models.Model):
         self.amount = self.actual_balance - self.balance_before
 
     def save(self, *args, **kwargs):
-        if not self.number and self.organization_id:
-            self.number = DocumentNumber.next_number(self.organization, self.DOC_TYPE)
+        assign_document_number(self, self.DOC_TYPE)
         super().save(*args, **kwargs)
 
     @property
@@ -216,6 +216,7 @@ class SettlementCorrection(models.Model):
 
     number = models.CharField("Номер", max_length=32, blank=True)
     date = models.DateField("Дата", default=timezone.localdate)
+    time = models.TimeField("Время", default=current_time)
     organization = models.ForeignKey("core.Organization", on_delete=models.PROTECT, verbose_name="Организация")
     counterparty = models.ForeignKey(
         "partners.Counterparty", on_delete=models.PROTECT, verbose_name="Контрагент",
@@ -230,7 +231,7 @@ class SettlementCorrection(models.Model):
     class Meta:
         verbose_name = "Корректировка взаиморасчётов"
         verbose_name_plural = "Корректировки взаиморасчётов"
-        ordering = ["-date", "-id"]
+        ordering = ["-date", "-time", "-id"]
 
     def __str__(self):
         return f"Корректировка взаиморасчётов № {self.number} от {self.date:%d.%m.%Y}"
@@ -241,8 +242,7 @@ class SettlementCorrection(models.Model):
         return self.amount if self.direction == self.DIR_THEY_OWE else -self.amount
 
     def save(self, *args, **kwargs):
-        if not self.number and self.organization_id:
-            self.number = DocumentNumber.next_number(self.organization, self.DOC_TYPE)
+        assign_document_number(self, self.DOC_TYPE)
         super().save(*args, **kwargs)
 
     @property
