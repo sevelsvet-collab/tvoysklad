@@ -123,7 +123,12 @@ class CatalogImportView(RoleRequiredMixin, FormView):
 
     def form_valid(self, form):
         created, updated, errors = import_products(form.cleaned_data["file"])
-        messages.success(self.request, f"Импорт завершён: создано {created}, обновлено {updated}")
+        if created or updated:
+            messages.success(self.request, f"Импорт завершён: создано {created}, обновлено {updated}")
+        elif not errors:
+            messages.warning(self.request, "В файле не нашлось ни одного товара с наименованием")
         for err in errors[:20]:
             messages.error(self.request, err)
+        if len(errors) > 20:
+            messages.error(self.request, f"…и ещё ошибок: {len(errors) - 20}")
         return redirect("catalog_import")

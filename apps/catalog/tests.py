@@ -262,3 +262,110 @@ class ProductCardFromDocumentTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.product.refresh_from_db()
         self.assertEqual(self.product.name, "Кабель HDMI 2 м")
+
+
+def break_dimension(buf):
+    """Портит размерность листа, как в экспорте МойСклада (<dimension ref="A1"/>).
+
+    В экономном режиме openpyxl после этого видит одну ячейку на строку —
+    ровно так импорт и ломался."""
+    import re
+    import zipfile
+
+    src = zipfile.ZipFile(buf)
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            data = src.read(item.filename)
+            if item.filename.startswith("xl/worksheets/sheet"):
+                data = re.sub(rb'<dimension ref="[^"]*"/>', b'<dimension ref="A1"/>', data)
+            dst.writestr(item, data)
+    out.seek(0)
+    return out
+
+
+MOYSKLAD_HEADER = [
+    "Группы", "UUID", "Тип", "Код", "Наименование", "Внешний код", "Артикул", "Единица измерения",
+    "Цена: Цена продажи", "Валюта (Цена продажи)", "Закупочная цена", "Валюта (Закупочная цена)",
+    "Неснижаемый остаток", "Штрихкод EAN13", "Штрихкод EAN8", "Описание", "НДС", "Архивный",
+]
+
+
+def moysklad_row(code, name, *, kind="Товар", unit="шт", sale="2500,00", purchase="1250,00",
+                 ean13="", ean8="", vat="без НДС", archived="нет", group=None, description=None):
+    return [group, "uuid-" + code, kind, code, name, "ext", None, unit, sale, "руб", purchase, "руб",
+            None, ean13, ean8, description, vat, archived]
+
+
+class MoySkladImportTests(TestCase):
+    """Выгрузка товаров из МойСклад загружается как есть."""
+
+    def _import(self, rows):
+        return import_products(break_dimension(make_xlsx(rows, MOYSKLAD_HEADER)))
+
+    def test_moysklad_file_with_broken_dimension_imports(self):
+        created, updated, errors = self._import([
+            moysklad_row("00435", "AirPods 2", ean13="2000996048633"),
+            moysklad_row("01101", "Borofone BL8", sale="150,00", purchase="0,00"),
+        ])
+        self.assertEqual((created, updated, errors), (2, 0, []))
+        airpods = Product.objects.get(code="00435")
+        self.assertEqual(airpods.sale_price, Decimal("2500.00"))
+        self.assertEqual(airpods.purchase_price, Decimal("1250.00"))
+        self.assertEqual(airpods.barcode, "2000996048633")
+        self.assertEqual(airpods.vat_rate, "none")
+        self.assertEqual(airpods.unit.name, "шт")
+
+    def test_same_names_with_different_codes_stay_separate(self):
+        """В МойСклад бывают одноимённые товары — не склеиваем их по названию."""
+        created, _, errors = self._import([
+            moysklad_row("00001", "ОФД на 36 месяцев", kind="Услуга", unit=None),
+            moysklad_row("00002", "ОФД на 36 месяцев", kind="Услуга", unit=None),
+        ])
+        self.assertEqual((created, errors), (2, []))
+        self.assertEqual(Product.objects.filter(name="ОФД на 36 месяцев").count(), 2)
+        self.assertTrue(all(p.is_service for p in Product.objects.all()))
+
+    def test_reimport_updates_by_code(self):
+        self._import([moysklad_row("00435", "AirPods 2")])
+        created, updated, _ = self._import([moysklad_row("00435", "AirPods 2 Pro", sale="3000,00")])
+        self.assertEqual((created, updated), (0, 1))
+        product = Product.objects.get(code="00435")
+        self.assertEqual((product.name, product.sale_price), ("AirPods 2 Pro", Decimal("3000.00")))
+
+    def test_archived_imported_inactive(self):
+        self._import([moysklad_row("00007", "Старый товар", archived="да")])
+        self.assertFalse(Product.objects.get(code="00007").is_active)
+
+    def test_first_of_several_barcodes(self):
+        self._import([moysklad_row("00008", "Чехол", ean13="4660042756660,4660042756677")])
+        self.assertEqual(Product.objects.get(code="00008").barcode, "4660042756660")
+
+    def test_barcode_from_other_column_when_ean13_empty(self):
+        self._import([moysklad_row("00009", "Мелочь", ean8="12345670")])
+        self.assertEqual(Product.objects.get(code="00009").barcode, "12345670")
+
+    def test_group_path_creates_nested_groups(self):
+        self._import([moysklad_row("00010", "Тариф", group="Связь/Тарифы МТС")])
+        group = Product.objects.get(code="00010").group
+        self.assertEqual((group.name, group.parent.name), ("Тарифы МТС", "Связь"))
+
+    def test_bad_row_does_not_break_import(self):
+        created, _, errors = self._import([
+            moysklad_row("00011", "Нормальный"),
+            moysklad_row("00012", "Х" * 600),   # длиннее поля — обрежется, не упадёт
+        ])
+        self.assertEqual((created, errors), (2, []))
+        self.assertEqual(len(Product.objects.get(code="00012").name), 512)
+
+    def test_vat_rates_parsed_correctly(self):
+        """Раньше «10» превращалось в «1», а «0» — в пустоту, и обе ставки становились 20%."""
+        from apps.catalog.importers import _vat
+
+        self.assertEqual([_vat(v) for v in ["20", "10", "0", "20%", "10.0", "без НДС", ""]],
+                         ["20", "10", "0", "20", "10", "none", "20"])
+
+    def test_header_not_found_gives_readable_error(self):
+        created, updated, errors = import_products(make_xlsx([["a", "b"]], ["Колонка1", "Колонка2"]))
+        self.assertEqual((created, updated), (0, 0))
+        self.assertIn("Наименование", errors[0])
