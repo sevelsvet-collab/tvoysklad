@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Вход — Склад{% endblock %}
 {% block anonymous_content %}
-<div class="d-flex align-items-center justify-content-center" style="min-height:100vh;">
+<div class="d-flex flex-column align-items-center justify-content-center" style="min-height:100vh;">
   <div class="card shadow" style="width: 380px;">
     <div class="card-body p-4">
       <h1 class="h4 text-center mb-1"><i class="bi bi-box-seam-fill text-primary me-2"></i>Склад</h1>
@@ -21,6 +21,22 @@
         </div>
         <button type="submit" class="btn btn-primary w-100">Войти</button>
       </form>
+    </div>
+  </div>
+
+  {# Кто владелец сервиса — видно и людям, и проверяющим роботам #}
+  <div class="text-center text-muted small mt-3" style="max-width:380px;">
+    <div>Служебная система складского и товарного учёта.</div>
+    {% if site_owner %}
+      <div class="mt-1">{{ site_owner.full_name|default:site_owner.name }}{% if site_owner.inn %}, ИНН {{ site_owner.inn }}{% endif %}</div>
+      {% if site_owner.phone or site_owner.email %}
+      <div>{{ site_owner.phone }}{% if site_owner.phone and site_owner.email %} · {% endif %}{{ site_owner.email }}</div>
+      {% endif %}
+    {% endif %}
+    <div class="mt-2">Доступ только для сотрудников, самостоятельной регистрации нет.</div>
+    <div class="mt-2">
+      <a href="{% url 'about' %}">О сервисе</a> ·
+      <a href="{% url 'privacy' %}">Политика конфиденциальности</a>
     </div>
   </div>
 </div>

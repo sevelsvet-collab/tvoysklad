@@ -5,6 +5,11 @@ from . import views
 urlpatterns = [
     path("", views.DashboardView.as_view(), name="dashboard"),
 
+    # Публичные страницы — открыты без входа
+    path("about/", views.AboutView.as_view(), name="about"),
+    path("privacy/", views.PrivacyView.as_view(), name="privacy"),
+    path("robots.txt", views.robots_txt, name="robots_txt"),
+
     path("settings/organizations/", views.OrganizationListView.as_view(), name="organization_list"),
     path("settings/organizations/new/", views.OrganizationCreateView.as_view(), name="organization_create"),
     path("settings/organizations/<int:pk>/", views.OrganizationUpdateView.as_view(), name="organization_edit"),

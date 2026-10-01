@@ -14,6 +14,18 @@ def assets(request):
     return {"asset_version": str(int(time.time())) if settings.DEBUG else ""}
 
 
+def site_owner(request):
+    """Организация по умолчанию — для страницы входа и публичных страниц.
+
+    SimpleLazyObject: запрос в базу уйдёт только там, где шаблон её выводит.
+    """
+    from django.utils.functional import SimpleLazyObject
+
+    from .models import Organization
+
+    return {"site_owner": SimpleLazyObject(Organization.get_default)}
+
+
 def navigation(request):
     """Верхнее меню в стиле МойСклад: разделы + подменю активного раздела.
 

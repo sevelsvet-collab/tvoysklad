@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.http import HttpResponse
 from django.contrib.auth import get_user_model
 from django.urls import reverse, reverse_lazy
 from django.views.generic import CreateView, ListView, TemplateView, UpdateView
@@ -9,6 +10,31 @@ from .models import Organization, Warehouse
 from .permissions import RoleRequiredMixin
 
 User = get_user_model()
+
+
+class AboutView(TemplateView):
+    """Публичная страница: что это за сервис и кому принадлежит."""
+
+    template_name = "core/about.html"
+
+
+class PrivacyView(TemplateView):
+    """Публичная политика конфиденциальности."""
+
+    template_name = "core/privacy.html"
+
+
+def robots_txt(request):
+    """Поисковикам открыты только публичные страницы, рабочие разделы закрыты."""
+    lines = [
+        "User-agent: *",
+        "Allow: /$",
+        "Allow: /login/",
+        "Allow: /about/",
+        "Allow: /privacy/",
+        "Disallow: /",
+    ]
+    return HttpResponse("\n".join(lines) + "\n", content_type="text/plain; charset=utf-8")
 
 
 class DashboardView(RoleRequiredMixin, TemplateView):
