@@ -11,6 +11,14 @@
   <div class="mb-3">
     {% url 'payment_list' as list_url %}
     {% include "documents/_doc_toolbar.html" with post_url_name="payment_post" unpost_url_name="payment_unpost" delete_url_name="payment_delete" list_url=list_url %}
+    {% if object and object.kind == "incoming" and object.account.kind == "cash" %}
+    <div class="mt-2">
+      <a href="{% url 'print_payment_cash_order' object.pk %}" target="_blank" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-printer me-1"></i>Приходный ордер (ПКО)
+      </a>
+      <a href="{% url 'print_payment_cash_order' object.pk %}?fmt=html" target="_blank" class="btn btn-link btn-sm text-secondary">просмотр</a>
+    </div>
+    {% endif %}
   </div>
   {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
   <div class="card mb-3" style="max-width:760px;">

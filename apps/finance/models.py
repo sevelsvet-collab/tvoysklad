@@ -40,8 +40,33 @@ class Account(models.Model):
             Account.objects.exclude(pk=self.pk).update(is_default=False)
 
     @classmethod
-    def get_default(cls):
-        return cls.objects.filter(is_default=True, is_active=True).first() or cls.objects.filter(is_active=True).first()
+    def get_default(cls, kind=None):
+        """Касса или счёт по умолчанию; kind — отдельно наличные и безналичные."""
+        qs = cls.objects.filter(is_active=True)
+        if kind:
+            qs = qs.filter(kind=kind)
+        return qs.order_by("-is_default", "name").first()
+
+    @classmethod
+    def ensure_default(cls, kind=KIND_BANK, organization=None):
+        """То же, но заводит кассу (счёт), если её ещё нет.
+
+        Без этого первый же платёж в пустой базе падал с ошибкой: счёт обязателен.
+        Возвращает (счёт, создан ли он только что).
+        """
+        account = cls.get_default(kind)
+        if account:
+            return account, False
+        from apps.core.models import Organization
+
+        org = organization or Organization.get_default()
+        if org is None:
+            return None, False
+        name = "Основная касса" if kind == cls.KIND_CASH else "Расчётный счёт"
+        account = cls.objects.create(
+            organization=org, name=name, kind=kind, is_default=not cls.objects.exists(),
+        )
+        return account, True
 
     def balance_at(self, exclude_correction_pk=None):
         """Остаток = начальный + приходы − расходы + проведённые корректировки.

@@ -18,6 +18,8 @@ urlpatterns = [
     path("money/payments/<int:pk>/unpost/", views.payment_unpost, name="payment_unpost"),
     path("money/payments/<int:pk>/delete/", views.payment_delete, name="payment_delete"),
     path("money/invoices/<int:pk>/pay/", views.invoice_to_payment, name="invoice_to_payment"),
+    path("money/invoices/<int:pk>/cash/", views.invoice_to_payment, {"account_kind": Account.KIND_CASH},
+         name="invoice_to_cash_order"),
 
     # Взаиморасчёты
     path("money/settlements/", views.SettlementsView.as_view(), name="settlements"),

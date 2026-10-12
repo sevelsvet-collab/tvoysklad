@@ -201,6 +201,19 @@ def _shipment_context(request, shipment, only_products=False, only_services=Fals
 
 
 @login_required
+def payment_cash_order(request, pk):
+    """Приходный кассовый ордер (форма КО-1) по наличному платежу."""
+    from apps.finance.models import Payment
+
+    payment = get_object_or_404(
+        Payment.objects.select_related("organization", "counterparty", "account", "invoice"), pk=pk,
+    )
+    context = _base_context(payment, payment.organization, payment.counterparty)
+    context.update({"doc": payment, "amount_words": amount_to_words(payment.amount)})
+    return _respond(request, "documents/print/cash_order.html", context, f"ПКО_{payment.number}.pdf")
+
+
+@login_required
 def shipment_torg12(request, pk):
     shipment = get_object_or_404(Shipment.objects.select_related("organization", "customer"), pk=pk)
     context = _shipment_context(request, shipment, only_products=True)

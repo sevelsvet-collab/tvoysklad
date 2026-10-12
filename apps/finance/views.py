@@ -180,17 +180,25 @@ def payment_delete(request, pk):
 
 
 @require_POST
-def invoice_to_payment(request, pk):
-    """Создать входящий платёж на основании счёта (остаток к оплате)."""
+def invoice_to_payment(request, pk, account_kind=Account.KIND_BANK):
+    """Платёж по счёту: на расчётный счёт или наличными в кассу (приходный ордер)."""
     invoice = get_object_or_404(Invoice, pk=pk)
+    account, created = Account.ensure_default(account_kind, invoice.organization)
+    if account is None:
+        messages.error(request, "Сначала заведите организацию в настройках")
+        return redirect("invoice_edit", pk=pk)
+    if created:
+        messages.info(request, f"Создана «{account.name}» — проверьте реквизиты "
+                               "в разделе «Деньги → Счета и кассы»")
     remaining = invoice.total - invoice.paid_amount
     payment = Payment.objects.create(
         kind=Payment.KIND_IN, organization=invoice.organization,
-        account=Account.get_default(), counterparty=invoice.customer, invoice=invoice,
+        account=account, counterparty=invoice.customer, invoice=invoice,
         amount=remaining if remaining > 0 else Decimal("0"),
         purpose=f"Оплата по счёту № {invoice.number} от {invoice.date:%d.%m.%Y}",
     )
-    messages.success(request, f"Создан входящий платёж № {payment.number} — проверьте и проведите")
+    what = "приходный ордер" if account_kind == Account.KIND_CASH else "входящий платёж"
+    messages.success(request, f"Создан {what} № {payment.number} — проверьте и проведите")
     return redirect("payment_edit", pk=payment.pk)
 
 

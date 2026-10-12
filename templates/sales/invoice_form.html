@@ -14,7 +14,8 @@
     {% include "documents/_doc_toolbar.html" with post_url_name="invoice_post" unpost_url_name="invoice_unpost" delete_url_name="invoice_delete" list_url=list_url save_post_label="Сохранить и выставить" post_label="Выставить" posted_label="Выставлен" %}
     {% if object %}
       <button type="submit" form="doc-action" formaction="{% url 'invoice_to_shipment' object.pk %}" class="btn btn-outline-success btn-sm"><i class="bi bi-truck me-1"></i>Создать отгрузку</button>
-      <button type="submit" form="doc-action" formaction="{% url 'invoice_to_payment' object.pk %}" class="btn btn-outline-success btn-sm"><i class="bi bi-cash-coin me-1"></i>Входящий платёж</button>
+      <button type="submit" form="doc-action" formaction="{% url 'invoice_to_payment' object.pk %}" class="btn btn-outline-success btn-sm" title="Оплата на расчётный счёт"><i class="bi bi-bank me-1"></i>Входящий платёж</button>
+      <button type="submit" form="doc-action" formaction="{% url 'invoice_to_cash_order' object.pk %}" class="btn btn-outline-success btn-sm" title="Приём наличных в кассу"><i class="bi bi-cash-stack me-1"></i>Приходный ордер</button>
       <div class="dropdown d-inline-block ms-1">
         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-printer me-1"></i>Печать</button>
         <ul class="dropdown-menu">

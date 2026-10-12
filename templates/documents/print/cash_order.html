@@ -1,0 +1,108 @@
+{% extends "documents/print/base_print.html" %}
+{% comment %}
+Приходный кассовый ордер (унифицированная форма КО-1) с квитанцией.
+Ожидает: doc (платёж), org, counterparty, amount_words.
+{% endcomment %}
+{% block body %}
+<style>
+  .ko-head { width: 100%; font-size: 8pt; }
+  .ko-title { font-size: 12pt; font-weight: bold; text-align: center; margin: 8pt 0; }
+  .ko-line { border-bottom: 0.75pt solid #000; display: inline-block; min-width: 60pt; }
+  .ko-cap { font-size: 7pt; color: #333; text-align: center; }
+  .ko-row { margin-top: 6pt; }
+  .ko-cut { border-top: 1pt dashed #000; margin: 14pt 0 8pt; }
+  .ko-sign { margin-top: 10pt; }
+</style>
+
+{# ---------- Левая часть: сам ордер ---------- #}
+<table class="ko-head">
+  <tr>
+    <td style="width:70%;">
+      <div>{{ org.full_name|default:org.name }}</div>
+      <div class="ko-cap" style="text-align:left;">организация</div>
+      {% if doc.account %}<div class="mt-1">{{ doc.account.name }}</div>
+      <div class="ko-cap" style="text-align:left;">структурное подразделение (касса)</div>{% endif %}
+    </td>
+    <td style="width:30%; vertical-align:top;">
+      <table class="b" style="width:100%; font-size:7.5pt;">
+        <tr><td>Код формы по ОКУД</td><td class="center">0310001</td></tr>
+        <tr><td>по ОКПО</td><td class="center">{{ org.okpo|default:"" }}</td></tr>
+        <tr><td>ИНН</td><td class="center">{{ org.inn|default:"" }}</td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<div class="ko-title">ПРИХОДНЫЙ КАССОВЫЙ ОРДЕР № {{ doc.number }}</div>
+<div class="center" style="font-size:9pt;">от {{ doc.date|date:"d.m.Y" }}</div>
+
+<table class="b mt" style="width:100%; font-size:8.5pt;">
+  <tr class="center">
+    <th style="width:16%;">Дебет</th>
+    <th style="width:16%;">Кредит</th>
+    <th style="width:22%;">Сумма, руб. коп.</th>
+    <th style="width:23%;">Код целевого назначения</th>
+    <th style="width:23%;">Код аналитического учёта</th>
+  </tr>
+  <tr class="center">
+    <td>50</td>
+    <td>62</td>
+    <td class="bold">{{ doc.amount|floatformat:2 }}</td>
+    <td>—</td>
+    <td>—</td>
+  </tr>
+</table>
+
+<div class="ko-row">Принято от <span class="ko-line" style="min-width:400pt;">{{ counterparty.full_name|default:counterparty.name }}</span></div>
+<div class="ko-row">Основание: <span class="ko-line" style="min-width:420pt;">{{ doc.purpose|default:"оплата по счёту" }}</span></div>
+<div class="ko-row">Сумма <span class="ko-line" style="min-width:430pt;">{{ amount_words }}</span></div>
+<div class="ko-cap" style="text-align:left;">прописью</div>
+<div class="ko-row">
+  В том числе
+  <span class="ko-line" style="min-width:250pt;">{% if org.vat_payer %}{% else %}без НДС{% endif %}</span>
+</div>
+<div class="ko-row">Приложение: <span class="ko-line" style="min-width:420pt;">{% if doc.invoice %}счёт № {{ doc.invoice.number }} от {{ doc.invoice.date|date:"d.m.Y" }}{% endif %}</span></div>
+
+<table class="ko-sign" style="width:100%; font-size:9pt;">
+  <tr>
+    <td style="width:50%;">
+      Главный бухгалтер <span class="ko-line" style="min-width:90pt;"></span>
+      <span class="ko-line" style="min-width:140pt;">{{ org.accountant_name|default:"" }}</span>
+    </td>
+    <td style="width:50%;">
+      Кассир <span class="ko-line" style="min-width:90pt;"></span>
+      <span class="ko-line" style="min-width:140pt;"></span>
+    </td>
+  </tr>
+  <tr class="ko-cap">
+    <td>подпись, расшифровка подписи</td>
+    <td>подпись, расшифровка подписи</td>
+  </tr>
+</table>
+
+{# ---------- Квитанция (отрывная часть) ---------- #}
+<div class="ko-cut"></div>
+<div class="center bold" style="font-size:10pt;">КВИТАНЦИЯ</div>
+<div class="center" style="font-size:9pt;">к приходному кассовому ордеру № {{ doc.number }} от {{ doc.date|date:"d.m.Y" }}</div>
+
+<div class="ko-row">Принято от <span class="ko-line" style="min-width:400pt;">{{ counterparty.full_name|default:counterparty.name }}</span></div>
+<div class="ko-row">Основание: <span class="ko-line" style="min-width:420pt;">{{ doc.purpose|default:"оплата по счёту" }}</span></div>
+<div class="ko-row">Сумма <span class="ko-line" style="min-width:430pt;">{{ amount_words }}</span></div>
+<div class="ko-cap" style="text-align:left;">прописью</div>
+<div class="ko-row">
+  В том числе
+  <span class="ko-line" style="min-width:250pt;">{% if org.vat_payer %}{% else %}без НДС{% endif %}</span>
+</div>
+
+<table class="ko-sign" style="width:100%; font-size:9pt;">
+  <tr>
+    <td style="width:33%;">{{ doc.date|date:"d.m.Y" }}</td>
+    <td style="width:34%;" class="center">
+      М.П. {% if org_stamp %}<img class="stamp-img" src="{{ org_stamp }}" alt="">{% endif %}
+    </td>
+    <td style="width:33%;">
+      Кассир <span class="ko-line" style="min-width:120pt;"></span>
+    </td>
+  </tr>
+</table>
+{% endblock %}
