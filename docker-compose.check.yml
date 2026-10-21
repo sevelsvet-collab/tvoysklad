@@ -1,0 +1,65 @@
+# Проверочная версия на КОПИИ данных рабочего сервера (docs/update-2026-10.md).
+#
+# Полностью отдельна от рабочей:
+#   - свои контейнеры sklad-check-db и sklad-check-web (имена не совпадают с
+#     рабочими sklad-db и sklad-web);
+#   - своя база в своём томе pgdata_check и своё хранилище файлов media_check;
+#   - своя сеть check: рабочая база sklad-db из неё не видна, поэтому
+#     проверочная версия не подключится к ней даже при ошибке в DATABASE_URL;
+#   - не входит в общую сеть внешнего Caddy и не занимает порты 80/443.
+#
+# Доступ — только с самого сервера: порт привязан к 127.0.0.1. Владелец
+# смотрит через SSH-туннель:
+#     ssh -L 8081:127.0.0.1:8081 <пользователь>@<сервер>
+# и открывает http://localhost:8081 в своём браузере.
+#
+# Настройки — отдельный файл .env.check рядом с этим (шаблон — в
+# docs/update-2026-10.md): свой SECRET_KEY и пароль базы, почта не настроена
+# (письма только в журнал контейнера), ключ DaData пуст. Рабочий .env здесь
+# не используется.
+#
+# Запускать из ОТДЕЛЬНОЙ папки с новой версией кода, не из папки рабочей
+# версии:
+#     docker compose -p sklad-check -f docker-compose.check.yml <команда>
+name: sklad-check
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sklad-check-db
+    env_file: .env.check
+    volumes:
+      - pgdata_check:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: "no"
+    networks:
+      - check
+
+  web:
+    build: .
+    image: sklad-check-web
+    container_name: sklad-check-web
+    env_file: .env.check
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - staticfiles_check:/app/staticfiles
+      - media_check:/app/media
+    ports:
+      - "127.0.0.1:8081:8000"
+    restart: "no"
+    networks:
+      - check
+
+networks:
+  check:
+
+volumes:
+  pgdata_check:
+  staticfiles_check:
+  media_check:
