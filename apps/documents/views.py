@@ -9,7 +9,9 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 
+from apps.core import roles
 from apps.core.constants import VAT_NONE, VAT_RATES, vat_amount
+from apps.core.permissions import role_required
 from apps.inventory.serials import parse as parse_serials
 from apps.sales.models import Invoice, Shipment
 
@@ -17,6 +19,10 @@ from .forms import InvoiceEmailForm
 from .money import amount_to_words
 from .pdf import render_pdf
 from .qr import invoice_qr_data_uri
+
+
+# Отправка счёта покупателю — те же роли, что редактируют счёт (apps.sales.views.SALES_ROLES)
+INVOICE_ROLES = [roles.ROLE_ADMIN, roles.ROLE_MANAGER]
 
 
 def _image_data_uri(field):
@@ -149,7 +155,7 @@ def _email_defaults(invoice, with_qr):
     return {"to_email": invoice.customer.email, "subject": subject, "message": message}
 
 
-@login_required
+@role_required(*INVOICE_ROLES)
 def invoice_send_email(request, pk, with_qr=False):
     invoice = get_object_or_404(Invoice.objects.select_related("organization", "customer"), pk=pk)
 

@@ -78,6 +78,16 @@
     </div>
     {% if object %}
     <div class="tab-pane fade" id="tab-docs">
+      <div class="mb-3">
+        <div class="d-flex align-items-baseline gap-2 mb-2">
+          <h6 class="mb-0">Взаиморасчёты</h6>
+          <a href="{% url 'settlements' %}" class="small">отчёт по всем контрагентам</a>
+        </div>
+        {% if settlement_totals.preliminary_pairs %}
+        <div class="alert alert-warning py-2 small mb-2">Есть нераспределённые документы ({{ settlement_totals.unallocated_count }}): задолженности по продажам и закупкам предварительные.</div>
+        {% endif %}
+        {% include "finance/_settlement_pairs.html" with pairs=settlement_pairs show_counterparty=False %}
+      </div>
       <div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
         <span class="text-muted small me-1">Создать:</span>
         {% if object.partner_type == 'customer' or object.partner_type == 'both' %}

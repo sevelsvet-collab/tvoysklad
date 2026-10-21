@@ -133,28 +133,41 @@ class ProductUpdateView(ProductEditBase, UpdateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         if self.object.track_serials:
-            ctx["serial_stock"] = _serial_stock(self.object)
+            from apps.inventory import transition
+
+            ctx["stock_ready"] = transition.is_ready()
+            ctx["serial_stock"] = _serial_stock(self.object) if ctx["stock_ready"] else []
             ctx["serial_stock_missing"] = [r for r in ctx["serial_stock"] if r["without"] > 0]
         return ctx
 
 
 def _serial_stock(product):
-    """По складам: остаток, сколько единиц уже с номерами и сколько без."""
+    """По организациям и складам: остаток, сколько единиц уже с номерами и
+    сколько без. Номера без определённой организации (перенос старых данных)
+    показываются отдельной строкой — без остатка."""
     from django.db.models import Count
 
     from apps.inventory.models import SerialNumber, StockBalance
 
-    numbered = dict(
-        SerialNumber.objects.filter(product=product).exclude(warehouse=None)
-        .values_list("warehouse").annotate(n=Count("id"))
-    )
+    numbered = {
+        (row["organization"], row["warehouse"]): row["n"]
+        for row in SerialNumber.objects.filter(product=product).exclude(warehouse=None)
+        .values("organization", "warehouse").annotate(n=Count("id"))
+    }
     rows = []
-    for balance in StockBalance.objects.filter(product=product).select_related("warehouse"):
-        with_numbers = numbered.get(balance.warehouse_id, 0)
+    for balance in StockBalance.objects.filter(product=product).select_related("warehouse", "organization").order_by(
+            "organization__name", "warehouse__name"):
+        with_numbers = numbered.pop((balance.organization_id, balance.warehouse_id), 0)
         rows.append({
-            "warehouse": balance.warehouse, "quantity": balance.quantity,
+            "organization": balance.organization, "warehouse": balance.warehouse, "quantity": balance.quantity,
             "numbered": with_numbers, "without": max(balance.quantity - with_numbers, 0),
         })
+    from apps.core.models import Warehouse
+
+    stores = Warehouse.objects.in_bulk()
+    for (organization_id, warehouse_id), count in sorted(numbered.items(), key=lambda item: str(item[0])):
+        rows.append({"organization": None, "warehouse": stores.get(warehouse_id), "quantity": None,
+                     "numbered": count, "without": 0, "unknown_owner": organization_id is None})
     return rows
 
 

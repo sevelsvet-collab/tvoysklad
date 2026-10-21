@@ -63,7 +63,8 @@ class DashboardView(RoleRequiredMixin, TemplateView):
 
         by_month = services.sales_by_month(6)
         ctx["chart_labels"] = [r["label"] for r in by_month]
-        ctx["chart_values"] = [float(r["value"]) for r in by_month]
+        ctx["chart_sales"] = [float(r["sales"]) for r in by_month]
+        ctx["chart_values"] = [float(r["value"]) for r in by_month]     # после возвратов
         return ctx
 
 

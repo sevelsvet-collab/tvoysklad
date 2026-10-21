@@ -10,7 +10,9 @@ def _doc_status(doc):
 
 def counterparty_documents(cp):
     """Единый список документов контрагента (счета, отгрузки, приёмки,
-    возвраты, платежи), отсортированный по дате — новые сверху."""
+    возвраты, платежи, корректировки взаиморасчётов), отсортированный по
+    дате — новые сверху. Сумма корректировки — со знаком: «+» — контрагент
+    должен нам, «−» — мы должны."""
     docs = []
 
     def add(items, type_label, icon, url_name, status_fn=_doc_status, amount_attr="total"):
@@ -57,6 +59,18 @@ def counterparty_documents(cp):
             "status": "Проведён" if p.is_posted else "Черновик",
             "is_posted": p.is_posted,
             "url": reverse("payment_edit", args=[p.pk]),
+        })
+
+    for c in cp.settlement_corrections.all():
+        docs.append({
+            "type_label": "Корректировка взаиморасчётов",
+            "icon": "bi-arrow-left-right",
+            "number": c.number,
+            "date": c.date,
+            "amount": c.signed_amount,
+            "status": "Проведена" if c.is_posted else "Черновик",
+            "is_posted": c.is_posted,
+            "url": reverse("settlement_correction_edit", args=[c.pk]),
         })
 
     docs.sort(key=lambda x: (x["date"] or date.min, x["number"]), reverse=True)

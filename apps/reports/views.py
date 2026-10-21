@@ -33,16 +33,25 @@ class SalesReportView(RoleRequiredMixin, TemplateView):
     template_name = "reports/sales.html"
 
     def get_context_data(self, **kwargs):
+        from apps.core.models import Organization
+        from apps.inventory import transition
+
         ctx = super().get_context_data(**kwargs)
         date_from, date_to = _period(self.request)
+        raw = self.request.GET.get("organization", "")
+        organization = int(raw) if raw.isdigit() else None
         ctx["date_from"] = date_from
         ctx["date_to"] = date_to
-        ctx["summary"] = services.sales_summary(date_from, date_to)
-        ctx["top_products"] = services.top_products(date_from, date_to)
-        ctx["top_customers"] = services.top_customers(date_from, date_to)
-        by_month = services.sales_by_month(6)
+        ctx["organizations"] = Organization.objects.order_by("name")
+        ctx["active_organization"] = str(organization or "")
+        ctx["stock_ready"] = transition.is_ready()
+        ctx["summary"] = services.sales_summary(date_from, date_to, organization)
+        ctx["top_products"] = services.top_products(date_from, date_to, organization=organization)
+        ctx["top_customers"] = services.top_customers(date_from, date_to, organization=organization)
+        by_month = services.sales_by_month(6, organization)
         ctx["chart_labels"] = [r["label"] for r in by_month]
-        ctx["chart_values"] = [float(r["value"]) for r in by_month]
+        ctx["chart_sales"] = [float(r["sales"]) for r in by_month]
+        ctx["chart_values"] = [float(r["value"]) for r in by_month]     # после возвратов
         return ctx
 
 

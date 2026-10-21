@@ -8,11 +8,12 @@ from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, ListView, UpdateView
 
 from apps.core import roles
-from apps.core.constants import DOC_POSTED
+from apps.core.based_on import create_based_on, create_return
 from apps.core.bulk import bulk_delete_view
 from apps.core.document_edit import LineDocumentMixin
 from apps.core.listing import FilteredListMixin, delete_action, document_filters
-from apps.core.permissions import RoleRequiredMixin
+from apps.core.permissions import RoleRequiredMixin, role_required
+from apps.inventory.services import StockError
 
 from .forms import (
     CustomerReturnForm,
@@ -93,6 +94,7 @@ class InvoiceUpdateView(RoleRequiredMixin, LineDocumentMixin, UpdateView):
 
 
 @require_POST
+@role_required(*SALES_ROLES)
 def invoice_post(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     invoice.post()
@@ -101,6 +103,7 @@ def invoice_post(request, pk):
 
 
 @require_POST
+@role_required(*SALES_ROLES)
 def invoice_unpost(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     invoice.unpost()
@@ -109,6 +112,7 @@ def invoice_unpost(request, pk):
 
 
 @require_POST
+@role_required(*SALES_ROLES)
 def invoice_bulk_delete(request):
     ids = request.POST.getlist("ids")
     if ids:
@@ -120,6 +124,7 @@ def invoice_bulk_delete(request):
 
 
 @require_POST
+@role_required(*SALES_ROLES)
 def invoice_delete(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     invoice.delete()
@@ -128,18 +133,14 @@ def invoice_delete(request, pk):
 
 
 @require_POST
+@role_required(*SHIP_ROLES)
 def invoice_to_shipment(request, pk):
     """Создать отгрузку на основании счёта (копирует шапку и строки)."""
     invoice = get_object_or_404(Invoice, pk=pk)
-    shipment = Shipment.objects.create(
-        organization=invoice.organization, warehouse=invoice.warehouse,
-        customer=invoice.customer, invoice=invoice,
-    )
-    for line in invoice.lines.all():
-        ShipmentLine.objects.create(
-            shipment=shipment, product=line.product, quantity=line.quantity,
-            price=line.price, vat_rate=line.vat_rate, serial_numbers=line.serial_numbers,
-        )
+    shipment = create_based_on(invoice, Shipment, ShipmentLine, "shipment", {
+        "organization": invoice.organization, "warehouse": invoice.warehouse,
+        "customer": invoice.customer, "invoice": invoice,
+    })
     messages.success(request, f"Создана отгрузка № {shipment.number} — проверьте и проведите")
     return redirect("shipment_edit", pk=shipment.pk)
 
@@ -189,6 +190,7 @@ class ShipmentUpdateView(RoleRequiredMixin, LineDocumentMixin, UpdateView):
 
 
 @require_POST
+@role_required(*SHIP_ROLES)
 def shipment_post(request, pk):
     shipment = get_object_or_404(Shipment, pk=pk)
     try:
@@ -200,19 +202,27 @@ def shipment_post(request, pk):
 
 
 @require_POST
+@role_required(*SHIP_ROLES)
 def shipment_unpost(request, pk):
     shipment = get_object_or_404(Shipment, pk=pk)
-    shipment.unpost()
+    try:
+        shipment.unpost()
+    except StockError as exc:
+        messages.error(request, f"Не удалось снять с проведения: {exc}")
+        return redirect("shipment_edit", pk=pk)
     messages.info(request, f"{shipment} — снята с проведения")
     return redirect("shipment_edit", pk=pk)
 
 
 @require_POST
+@role_required(*SHIP_ROLES)
 def shipment_delete(request, pk):
     shipment = get_object_or_404(Shipment, pk=pk)
-    if shipment.status == DOC_POSTED:
-        shipment.unpost()
-    shipment.delete()
+    try:
+        shipment.delete()   # проведённый снимается с проведения — с проверкой остатков
+    except StockError as exc:
+        messages.error(request, f"Не удалось удалить: {exc}")
+        return redirect("shipment_edit", pk=pk)
     messages.info(request, "Отгрузка удалена")
     return redirect("shipment_list")
 
@@ -262,6 +272,7 @@ class CustomerReturnUpdateView(RoleRequiredMixin, LineDocumentMixin, UpdateView)
 
 
 @require_POST
+@role_required(*SHIP_ROLES)
 def customer_return_post(request, pk):
     doc = get_object_or_404(CustomerReturn, pk=pk)
     try:
@@ -273,36 +284,45 @@ def customer_return_post(request, pk):
 
 
 @require_POST
+@role_required(*SHIP_ROLES)
 def customer_return_unpost(request, pk):
     doc = get_object_or_404(CustomerReturn, pk=pk)
-    doc.unpost()
+    try:
+        doc.unpost()
+    except StockError as exc:
+        messages.error(request, f"Не удалось снять с проведения: {exc}")
+        return redirect("customer_return_edit", pk=pk)
     messages.info(request, f"{doc} — снят с проведения")
     return redirect("customer_return_edit", pk=pk)
 
 
 @require_POST
+@role_required(*SHIP_ROLES)
 def customer_return_delete(request, pk):
     doc = get_object_or_404(CustomerReturn, pk=pk)
-    if doc.status == DOC_POSTED:
-        doc.unpost()
-    doc.delete()
+    try:
+        doc.delete()   # проведённый снимается с проведения — с проверкой остатков
+    except StockError as exc:
+        messages.error(request, f"Не удалось удалить: {exc}")
+        return redirect("customer_return_edit", pk=pk)
     messages.info(request, "Возврат покупателя удалён")
     return redirect("customer_return_list")
 
 
 @require_POST
+@role_required(*SHIP_ROLES)
 def shipment_to_return(request, pk):
     """Создать возврат покупателя на основании отгрузки (копирует шапку и строки)."""
     shipment = get_object_or_404(Shipment, pk=pk)
-    doc = CustomerReturn.objects.create(
-        organization=shipment.organization, warehouse=shipment.warehouse,
-        customer=shipment.customer, shipment=shipment,
-    )
-    for line in shipment.lines.all():
-        CustomerReturnLine.objects.create(
-            document=doc, product=line.product, quantity=line.quantity,
-            price=line.price, vat_rate=line.vat_rate,
-        )
+    # Переносим то, что ещё не возвращено, с теми же ценами, скидками и НДС;
+    # из серийных номеров — только ещё не возвращённые.
+    doc, nothing_left = create_return(shipment, CustomerReturn, CustomerReturnLine, {
+        "organization": shipment.organization, "warehouse": shipment.warehouse,
+        "customer": shipment.customer, "shipment": shipment,
+    })
+    if doc is None:
+        messages.warning(request, nothing_left)
+        return redirect("shipment_edit", pk=shipment.pk)
     messages.success(request, f"Создан возврат покупателя № {doc.number} — проверьте и проведите")
     return redirect("customer_return_edit", pk=doc.pk)
 

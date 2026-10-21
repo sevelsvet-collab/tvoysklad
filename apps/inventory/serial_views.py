@@ -64,12 +64,13 @@ def describe(movements):
 
 @login_required
 def serials_available(request):
-    """Номера товара на складе — для выбора при расходе."""
+    """Номера товара на складе у организации документа — для выбора при расходе."""
     product_id = request.GET.get("product", "")
     warehouse_id = request.GET.get("warehouse", "")
-    if not (product_id.isdigit() and warehouse_id.isdigit()):
+    organization_id = request.GET.get("organization", "")
+    if not (product_id.isdigit() and warehouse_id.isdigit() and organization_id.isdigit()):
         return JsonResponse({"serials": []})
-    return JsonResponse({"serials": serials.available(int(product_id), int(warehouse_id))})
+    return JsonResponse({"serials": serials.available(int(product_id), int(warehouse_id), int(organization_id))})
 
 
 @require_POST
@@ -78,13 +79,16 @@ def serials_available(request):
 def product_serial_stock(request, pk):
     """Ввод номеров для товара, который лежал на складе до включения учёта."""
     from apps.catalog.models import Product
-    from apps.core.models import Warehouse
+    from apps.core.models import Organization, Warehouse
 
     product = get_object_or_404(Product, pk=pk)
-    warehouse = get_object_or_404(Warehouse, pk=request.POST.get("warehouse") or 0)
+    place = (request.POST.get("place") or "").split(":")
+    warehouse = get_object_or_404(Warehouse, pk=place[0] if place[0].isdigit() else 0)
+    organization = Organization.objects.filter(pk=place[1] if len(place) > 1 and place[1].isdigit() else 0).first()
     try:
-        count = serials.enter_stock(product, warehouse, request.POST.get("numbers", ""))
-        messages.success(request, f"Добавлено серийных номеров: {count} (склад «{warehouse}»)")
+        count = serials.enter_stock(product, warehouse, request.POST.get("numbers", ""), organization)
+        messages.success(request, f"Добавлено серийных номеров: {count} (склад «{warehouse}», "
+                                  f"организация «{organization}»)")
     except StockError as exc:
         messages.error(request, str(exc))
     url = reverse("product_edit", args=[pk])

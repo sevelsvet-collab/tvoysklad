@@ -133,12 +133,26 @@ class SettlementsWithReturnsTests(TestCase):
             organization=self.org, warehouse=self.wh, customer=self.customer, status=Invoice.STATUS_ISSUED,
         )
         inv.lines.create(product=self.product, quantity=1, price=1000, vat_rate="none")
+        # ПОВЕДЕНИЕ ИЗМЕНЕНО (этап 27, правило 1): задолженность создаёт отгрузка,
+        # а не выставленный счёт. Чтобы проверять то же правило «возврат
+        # уменьшает долг», товар отгружен по этому счёту (запас — приёмкой от
+        # другого контрагента: у покупателя закупок нет). Ожидание прежнее:
+        # 1000 − 300 = 700.
+        supplier = Counterparty.objects.create(name="Поставщик", partner_type=Counterparty.TYPE_SUPPLIER)
+        receipt = Receipt.objects.create(organization=self.org, warehouse=self.wh, supplier=supplier)
+        receipt.lines.create(product=self.product, quantity=5, price=100)
+        receipt.post()
+        shipment = Shipment.objects.create(organization=self.org, warehouse=self.wh, customer=self.customer,
+                                           invoice=inv)
+        shipment.lines.create(product=self.product, quantity=1, price=1000, vat_rate="none")
+        shipment.post()
         ret = CustomerReturn.objects.create(organization=self.org, warehouse=self.wh, customer=self.customer)
         ret.lines.create(product=self.product, quantity=1, price=300, vat_rate="none")
         ret.post()
 
         resp = self.client.get(reverse("settlements"))
-        row = next(r for r in resp.context["rows"] if r["cp"] == self.customer)
-        self.assertEqual(row["sales"], Decimal("1000"))
-        self.assertEqual(row["cust_return"], Decimal("300"))
-        self.assertEqual(row["balance"], Decimal("700"))  # 1000 продали − 300 вернули
+        row = next(r for r in resp.context["rows"] if r.counterparty == self.customer)
+        self.assertEqual(row.shipped, Decimal("1000"))
+        self.assertEqual(row.customer_returned, Decimal("300"))
+        self.assertEqual(row.sales, Decimal("700"))  # 1000 отгрузили − 300 вернули
+        self.assertEqual(row.invoiced, Decimal("1000"))          # счёт — справочно, долг не удваивает

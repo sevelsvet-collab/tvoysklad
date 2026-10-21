@@ -20,7 +20,7 @@
        data-track-serials="{% if form.instance.product_id and form.instance.product.track_serials %}1{% endif %}"
        data-ac-create-label="Создать новый товар"
        data-ac-params='{"price": "{{ price_source|default:"purchase" }}"}'
-       data-ac-dyn='{"warehouse": "[name={{ warehouse_field|default:"warehouse" }}]"}'>
+       data-ac-dyn='{"warehouse": "[name={{ warehouse_field|default:"warehouse" }}]", "organization": "[name={{ org_field|default:"organization" }}]"}'>
     <input type="hidden" name="{{ form.product.html_name }}" id="{{ form.product.auto_id }}"
            value="{{ form.product.value|default_if_none:'' }}" class="ac-value line-product">
     <div class="line-product-view{% if not form.instance.product_id %} d-none{% endif %}">
@@ -40,6 +40,17 @@
     </button>
   </div>
   <textarea name="{{ form.serial_numbers.html_name }}" class="d-none line-serials">{{ form.serial_numbers.value|default_if_none:'' }}</textarea>
+  {% if form.shipment_line and form.shipment_line.field.queryset.exists %}
+  <div class="mt-1 small d-flex align-items-center gap-1" title="Из какой строки отгрузки возвращается товар">
+    <span class="text-muted text-nowrap">Строка отгрузки:</span>
+    <select name="{{ form.shipment_line.html_name }}" id="{{ form.shipment_line.auto_id }}" class="form-select form-select-sm line-shipment-line">
+      {% for value, label in form.shipment_line.field.choices %}
+      <option value="{{ value|default_if_none:'' }}"{% if form.shipment_line.value|stringformat:"s" == value|stringformat:"s" %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% if form.shipment_line.errors %}<div class="text-danger small">{{ form.shipment_line.errors.0 }}</div>{% endif %}
+  {% endif %}
 </td>
 <td class="text-nowrap" style="width:118px;">
   <div class="d-flex align-items-center gap-1">

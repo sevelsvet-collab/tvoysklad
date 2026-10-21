@@ -45,13 +45,13 @@ class SalesReportServiceTests(TestCase):
 
     def test_top_products(self):
         rows = services.top_products()
-        self.assertEqual(rows[0]["product__name"], "Товар")
+        self.assertEqual(rows[0]["product"], "Товар")              # строки включают и возвраты — ключ «product»
         self.assertEqual(rows[0]["revenue"], Decimal("900.00"))
         self.assertEqual(rows[0]["profit"], Decimal("300.00"))
 
     def test_top_customers(self):
         rows = services.top_customers()
-        self.assertEqual(rows[0]["shipment__customer__name"], "Клиент")
+        self.assertEqual(rows[0]["customer"], "Клиент")            # строки включают и возвраты — ключ «customer»
         self.assertEqual(rows[0]["revenue"], Decimal("900.00"))
 
     def test_draft_shipment_excluded(self):

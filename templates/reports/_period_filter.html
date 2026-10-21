@@ -1,4 +1,4 @@
-{% comment %}Фильтр периода. Ожидает: date_from, date_to.{% endcomment %}
+{% comment %}Фильтр периода. Ожидает: date_from, date_to; organizations — тогда и фильтр организации.{% endcomment %}
 <form method="get" class="d-flex gap-2 mb-3 flex-wrap align-items-end">
   <div>
     <label class="form-label small mb-0">С</label>
@@ -8,5 +8,14 @@
     <label class="form-label small mb-0">По</label>
     <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}" class="form-control form-control-sm">
   </div>
+  {% if organizations %}
+  <div>
+    <label class="form-label small mb-0">Организация</label>
+    <select name="organization" class="form-select form-select-sm">
+      <option value="">Все организации (сумма)</option>
+      {% for o in organizations %}<option value="{{ o.pk }}" {% if active_organization == o.pk|stringformat:'s' %}selected{% endif %}>{{ o.name }}</option>{% endfor %}
+    </select>
+  </div>
+  {% endif %}
   <button class="btn btn-sm btn-primary">Показать</button>
 </form>

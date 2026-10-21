@@ -21,7 +21,10 @@
           {% include "documents/_ac_field.html" with field=form.counterparty selected=form.instance.counterparty search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" %}
           {% if form.counterparty.errors %}<div class="text-danger small">{{ form.counterparty.errors.0 }}</div>{% endif %}</div>
         <div class="col-md-7"><label class="form-label">Направление</label>{{ form.direction }}
-          <div class="form-text">Куда сместить сальдо взаиморасчётов.</div></div>
+          <div class="form-text">Кто кому становится должен больше.</div></div>
+        <div class="col-md-7"><label class="form-label">Сторона расчётов</label>{{ form.side }}
+          {% if form.side.errors %}<div class="text-danger small">{{ form.side.errors.0 }}</div>{% endif %}
+          <div class="form-text">Продажи — долг покупателя, закупки — наш долг поставщику. «Не распределено» показывается отдельно и входит только в справочную разницу. Взаимозачётом корректировка не является.</div></div>
         <div class="col-md-5"><label class="form-label">Сумма, ₽</label>{{ form.amount }}
           {% if form.amount.errors %}<div class="text-danger small">{{ form.amount.errors.0 }}</div>{% endif %}</div>
         <div class="col-12"><label class="form-label">Комментарий</label>{{ form.comment }}</div>

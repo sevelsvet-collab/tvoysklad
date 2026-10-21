@@ -145,10 +145,18 @@ class SettlementsTests(TestCase):
         )
         resp = self.client.get(reverse("settlements"))
         self.assertEqual(resp.status_code, 200)
-        row = next(r for r in resp.context["rows"] if r["cp"] == self.customer)
-        self.assertEqual(row["sales"], Decimal("1000"))
-        self.assertEqual(row["paid_in"], Decimal("400"))
-        self.assertEqual(row["balance"], Decimal("600"))  # клиент должен нам 600
+        row = next(r for r in resp.context["rows"] if r.counterparty == self.customer)
+        # ПОВЕДЕНИЕ ИЗМЕНЕНО (этап 27, docs/settlements-proposal.md, правило 1):
+        # выставленный счёт задолженность не создаёт, её создаёт отгрузка.
+        # Было: сальдо 600 (счёт 1000 − оплата 400). Стало: отгрузок нет, оплата
+        # 400 по счёту — «оплата от покупателя», по продажам −400 — аванс
+        # покупателя (мы должны ему отгрузку или деньги). Счёт — справочно.
+        self.assertEqual(row.customer_paid, Decimal("400"))
+        self.assertEqual(row.sales, Decimal("-400"))
+        self.assertEqual((row.invoiced, row.invoice_paid, row.invoice_shipped),
+                         (Decimal("1000"), Decimal("400"), Decimal("0")))
+        self.assertTrue(row.final)
+        self.assertContains(resp, "наш долг покупателю: аванс, переплата")
 
 
 class AccountCorrectionTests(TestCase):
@@ -201,13 +209,20 @@ class SettlementCorrectionTests(TestCase):
         )
         # Черновик — не влияет
         resp = self.client.get(reverse("settlements"))
-        rows = [r for r in resp.context["rows"] if r["cp"] == self.customer]
+        rows = [r for r in resp.context["rows"] if r.counterparty == self.customer]
         self.assertEqual(rows, [])
         sc.post()
         resp = self.client.get(reverse("settlements"))
-        row = next(r for r in resp.context["rows"] if r["cp"] == self.customer)
-        self.assertEqual(row["correction"], Decimal("1500"))
-        self.assertEqual(row["balance"], Decimal("1500"))
+        row = next(r for r in resp.context["rows"] if r.counterparty == self.customer)
+        # ПОВЕДЕНИЕ ИЗМЕНЕНО (этап 27, правило 5): у корректировки есть сторона;
+        # созданная без неё (как все старые) — «не распределено»: в продажи и
+        # закупки не входит, видна отдельно и входит только в справочную
+        # разницу; расчёт пары предварительный. Было: сальдо 1500. Стало:
+        # стороны 0 и 0, без стороны +1500, разница 1500.
+        self.assertEqual((row.sales, row.purchases), (Decimal("0"), Decimal("0")))
+        self.assertEqual(row.unsided, Decimal("1500"))
+        self.assertEqual(row.difference, Decimal("1500"))
+        self.assertFalse(row.final)
 
     def test_we_owe_direction_is_negative(self):
         sc = SettlementCorrection.objects.create(

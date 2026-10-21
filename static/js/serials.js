@@ -174,7 +174,9 @@
       } else {
         current.emptyText = 'На этом складе нет номеров этого товара';
         el.querySelector('.sn-list').innerHTML = '<div class="text-muted small">Загружаем номера…</div>';
-        fetch(root.dataset.serialsUrl + '?product=' + encodeURIComponent(productId) + '&warehouse=' + encodeURIComponent(wh.value))
+        const org = document.querySelector('[name=' + (root.dataset.orgField || 'organization') + ']');
+        fetch(root.dataset.serialsUrl + '?product=' + encodeURIComponent(productId) + '&warehouse=' + encodeURIComponent(wh.value)
+              + '&organization=' + encodeURIComponent(org ? org.value : ''))
           .then((r) => r.json())
           .then((data) => { if (current && current.tr === tr) { current.available = data.serials || []; render(); } })
           .catch(() => { current.emptyText = 'Не удалось загрузить номера'; render(); });

@@ -24,7 +24,9 @@ def back(request, fallback_url):
 
 def bulk_delete_view(model, list_url_name, roles, noun="документов"):
     """Представление «удалить отмеченные»: проведённые сначала снимаются
-    с проведения; документ, на который ссылаются другие, пропускается."""
+    с проведения. Документ, удаление которого нарушило бы учёт (остаток ушёл
+    бы в минус, сломалась бы история серийного номера) или на который ссылаются
+    другие, остаётся нетронутым — с объяснением причины."""
 
     @require_POST
     @role_required(*roles)
@@ -36,20 +38,26 @@ def bulk_delete_view(model, list_url_name, roles, noun="документов"):
             messages.warning(request, "Ничего не выбрано")
             return back(request, reverse(list_url_name))
         deleted, failed = 0, []
-        for obj in model.objects.filter(pk__in=ids):
+        for obj in model.objects.filter(pk__in=ids).order_by("pk"):
             try:
+                # Каждый документ — своя транзакция и те же правила, что при
+                # одиночном удалении: складские документы проверяют остатки
+                # и серийные номера в собственном delete().
                 with transaction.atomic():
                     if getattr(obj, "is_posted", False) and hasattr(obj, "unpost"):
                         obj.unpost()
                     obj.delete()
                 deleted += 1
-            except (ProtectedError, StockError):
-                failed.append(str(obj))
+            except ProtectedError:
+                failed.append(f"{obj}: на документ ссылаются другие документы")
+            except StockError as exc:
+                failed.append(f"{obj}: {exc}")
         if deleted:
             messages.success(request, f"Удалено {noun}: {deleted}")
-        if failed:
-            messages.error(request, "Не удалось удалить — на них ссылаются другие документы: "
-                                    + ", ".join(failed[:5]) + (" …" if len(failed) > 5 else ""))
+        for reason in failed[:5]:
+            messages.error(request, f"Не удалён — {reason}")
+        if len(failed) > 5:
+            messages.error(request, f"…и ещё не удалено: {len(failed) - 5}")
         return back(request, reverse(list_url_name))
 
     return view

@@ -187,8 +187,11 @@ class SerialTrackingTests(TestCase):
         self._receipt([], qty=2)                       # приняли до включения учёта
         self.phone.track_serials = True
         self.phone.save()
+        # ПРАВИЛО ДОПОЛНЕНО (учёт по организациям, 18.10.2026): товар и номер на складе
+        # принадлежат организации; номера остатка вводятся для организации («склад:организация»),
+        # выбор номеров при расходе — у организации документа. Ожидаемые количества прежние.
         resp = self.client.post(reverse("product_serial_stock", args=[self.phone.pk]),
-                                {"warehouse": self.wh.pk, "numbers": "OLD-1\nOLD-2"})
+                                {"place": f"{self.wh.pk}:{self.org.pk}", "numbers": "OLD-1\nOLD-2"})
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(SerialNumber.objects.filter(warehouse=self.wh).count(), 2)
         self._shipment(["OLD-1"]).post()               # теперь их можно отгрузить
@@ -200,8 +203,11 @@ class SerialTrackingTests(TestCase):
         self._receipt([], qty=1)
         self.phone.track_serials = True
         self.phone.save()
+        # ПРАВИЛО ДОПОЛНЕНО (учёт по организациям, 18.10.2026): товар и номер на складе
+        # принадлежат организации; номера остатка вводятся для организации («склад:организация»),
+        # выбор номеров при расходе — у организации документа. Ожидаемые количества прежние.
         with self.assertRaisesMessage(StockError, "без номеров 1 шт., а введено 2"):
-            serials.enter_stock(self.phone, self.wh, "OLD-1\nOLD-2")
+            serials.enter_stock(self.phone, self.wh, "OLD-1\nOLD-2", self.org)
 
     def test_product_card_shows_stock_without_numbers(self):
         self.phone.track_serials = False
@@ -226,7 +232,11 @@ class SerialTrackingTests(TestCase):
 
     def test_available_api_lists_numbers_on_warehouse(self):
         self._receipt(["SN-2", "SN-1"])
-        resp = self.client.get(reverse("api_serials_available"), {"product": self.phone.pk, "warehouse": self.wh.pk})
+        # ПРАВИЛО ДОПОЛНЕНО (учёт по организациям, 18.10.2026): товар и номер на складе
+        # принадлежат организации; номера остатка вводятся для организации («склад:организация»),
+        # выбор номеров при расходе — у организации документа. Ожидаемые количества прежние.
+        resp = self.client.get(reverse("api_serials_available"), {"product": self.phone.pk, "warehouse": self.wh.pk,
+                                                                  "organization": self.org.pk})
         self.assertEqual(resp.json()["serials"], ["SN-1", "SN-2"])
 
     def test_search_api_flags_tracked_products(self):

@@ -14,6 +14,8 @@ from apps.core.bulk import back, selected_ids
 from apps.core.forms import ImportForm
 from apps.core.listing import ChoiceFilter, FilteredListMixin, PeriodFilter, TextFilter, organizations
 from apps.core.permissions import RoleRequiredMixin, role_required
+from apps.finance.settlements import settlement_pairs
+from apps.finance.settlements import totals as settlement_totals
 
 from .contracts import PLACEHOLDER_GROUPS, build_contract_text, default_option, sync_answers
 from .documents import counterparty_documents
@@ -89,6 +91,9 @@ class CounterpartyEditBase(RoleRequiredMixin):
             ctx["contact_formset"] = ContactPersonFormSet(instance=self.object, prefix="contacts")
         if self.object is not None:
             ctx["documents"] = counterparty_documents(self.object)
+            # тот же расчёт, что в отчёте «Взаиморасчёты»; только чтение
+            ctx["settlement_pairs"] = settlement_pairs(counterparty=self.object)
+            ctx["settlement_totals"] = settlement_totals(ctx["settlement_pairs"])
             ctx["contracts"] = self.object.contracts.select_related("template", "organization")
         return ctx
 
@@ -348,6 +353,7 @@ def contract_download(request, pk, fmt="pdf"):
 
 
 @require_POST
+@role_required(*EDIT_ROLES)
 def contract_bulk_delete(request):
     """Удаление отмеченных договоров из списка."""
     ids = request.POST.getlist("ids")
@@ -361,6 +367,7 @@ def contract_bulk_delete(request):
 
 
 @require_POST
+@role_required(*EDIT_ROLES)
 def contract_delete(request, pk):
     contract = get_object_or_404(Contract, pk=pk)
     counterparty_pk = contract.counterparty_id
@@ -406,6 +413,7 @@ class ContractTemplateUpdateView(ContractTemplateEditBase, UpdateView):
 
 
 @require_POST
+@role_required(*EDIT_ROLES)
 def contract_template_delete(request, pk):
     get_object_or_404(ContractTemplate, pk=pk).delete()
     messages.info(request, "Шаблон удалён")

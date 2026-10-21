@@ -1,0 +1,27 @@
+{% load humanize %}
+{# Итоги без взаимозачёта: каждая сторона отдельно, противоположные суммы друг друга не гасят #}
+<div class="row g-2 mb-3">
+  <div class="col-sm-6 col-lg-3"><div class="card h-100"><div class="card-body py-2">
+    <div class="small text-muted">Покупатели должны нам (продажи)</div>
+    <div class="fs-5 fw-semibold text-success">{{ totals.customers_owe|floatformat:2|intcomma }} ₽</div>
+    <div class="small text-muted">Мы должны покупателям (авансы, переплаты): {{ totals.customer_advances|floatformat:2|intcomma }} ₽</div>
+  </div></div></div>
+  <div class="col-sm-6 col-lg-3"><div class="card h-100"><div class="card-body py-2">
+    <div class="small text-muted">Мы должны поставщикам (закупки)</div>
+    <div class="fs-5 fw-semibold text-danger">{{ totals.we_owe_suppliers|floatformat:2|intcomma }} ₽</div>
+    <div class="small text-muted">Поставщики должны нам (авансы, переплаты): {{ totals.supplier_advances|floatformat:2|intcomma }} ₽</div>
+  </div></div></div>
+  <div class="col-sm-12 col-lg-6"><div class="card h-100 {% if totals.unallocated_count %}border-warning{% endif %}"><div class="card-body py-2">
+    <div class="small text-muted">Не распределено</div>
+    {% if totals.unallocated_count %}
+    <div class="fw-semibold">Документов: {{ totals.unallocated_count }}</div>
+    <div class="small">Платежи: получено {{ totals.unallocated_in|floatformat:2|intcomma }} ₽, уплачено {{ totals.unallocated_out|floatformat:2|intcomma }} ₽.
+      Корректировки без стороны: «контрагент должен» {{ totals.unsided_they_owe|floatformat:2|intcomma }} ₽, «мы должны» {{ totals.unsided_we_owe|floatformat:2|intcomma }} ₽.</div>
+    {% else %}
+    <div class="fw-semibold">Нет</div>
+    {% endif %}
+  </div></div></div>
+</div>
+{% if totals.preliminary_pairs %}
+<div class="alert alert-warning py-2 small">Есть нераспределённые документы (пар: {{ totals.preliminary_pairs }}). Задолженности по продажам и закупкам в этих парах предварительные, пока не уточнено «Назначение для взаиморасчётов» платежей и сторона корректировок.</div>
+{% endif %}

@@ -1,11 +1,17 @@
 {% extends "base.html" %}
 {% load humanize %}
 {% block title %}Остатки — Склад{% endblock %}
-{% block page_title %}Остатки{% endblock %}
+{% block page_title %}Остатки{% if on_date %} на {{ on_date|date:"d.m.Y" }}{% endif %}{% endblock %}
 {% block content %}
 <form method="get" class="d-flex gap-2 mb-3 flex-wrap">
   <input type="search" name="q" class="form-control form-control-sm" style="max-width:280px;"
          placeholder="Товар или артикул" value="{{ request.GET.q|default:'' }}">
+  <select name="organization" class="form-select form-select-sm" style="max-width:220px;" onchange="this.form.submit()">
+    <option value="">Все организации</option>
+    {% for o in organizations %}
+      <option value="{{ o.pk }}" {% if active_organization == o.pk|stringformat:'s' %}selected{% endif %}>{{ o.name }}</option>
+    {% endfor %}
+  </select>
   <select name="warehouse" class="form-select form-select-sm" style="max-width:220px;" onchange="this.form.submit()">
     <option value="">Все склады</option>
     {% for w in warehouses %}
@@ -18,14 +24,27 @@
       <option value="{{ g.pk }}" {% if active_group == g.pk|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>
     {% endfor %}
   </select>
+  <label class="d-flex align-items-center gap-1 small text-muted">на дату
+    <input type="date" name="on" class="form-control form-control-sm" style="max-width:170px;"
+           value="{{ on_date|date:'Y-m-d' }}" title="Пусто — текущие остатки">
+  </label>
   <button class="btn btn-sm btn-outline-secondary">Показать</button>
 </form>
+{% if not stock_ready %}
+<div class="alert alert-warning">Складской учёт ещё не пересчитан по организациям после обновления программы — остатки
+  будут показаны после пересчёта. Пока он не выполнен, складские операции недоступны.
+  Администратору: <code>manage.py stock_transition</code>, затем <code>stock_transition --apply --i-have-a-backup</code>.</div>
+{% else %}
+{% if on_date %}
+<div class="text-muted small mb-2">Остатки на конец дня {{ on_date|date:"d.m.Y" }}: история пересчитана по документам с датой не позже этой — более поздние документы не учитываются.</div>
+{% endif %}
+<div class="text-muted small mb-2">Строка — остаток организации на складе: у каждой организации свои количество и средняя. Товар одной организации не покрывает дефицит другой.</div>
 <div class="card">
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th>Товар</th><th>Артикул</th><th>Склад</th>
+          <th>Товар</th><th>Артикул</th><th>Склад</th><th>Организация</th>
           <th class="text-end">Остаток</th><th>Ед.</th>
           <th class="text-end">Себестоимость</th><th class="text-end">Сумма</th>
         </tr>
@@ -37,28 +56,48 @@
           <td class="fw-semibold">{{ b.product.name }}</td>
           <td>{{ b.product.article|default:"—" }}</td>
           <td>{{ b.warehouse.name }}</td>
+          <td>{{ b.organization.name|default:"—" }}</td>
           <td class="text-end">{{ b.quantity|floatformat:"-3"|intcomma }}
-            {% if b.product.min_stock and b.quantity < b.product.min_stock %}
+            {% if b.quantity < 0 %}
+              <span class="badge bg-warning text-dark" title="Продано раньше поступления: себестоимость этих единиц определится после поступления этой организации">дефицит, ждёт поступления</span>
+            {% elif b.product.min_stock and b.quantity < b.product.min_stock %}
               <i class="bi bi-exclamation-triangle-fill text-warning" title="Ниже неснижаемого остатка ({{ b.product.min_stock|floatformat:'-3' }})"></i>
             {% endif %}
           </td>
           <td>{{ b.product.unit }}</td>
-          <td class="text-end">{{ b.avg_cost|floatformat:2|intcomma }}</td>
-          <td class="text-end">{{ b.total_value|floatformat:2|intcomma }}</td>
+          <td class="text-end">{% if b.quantity > 0 %}{{ b.avg_cost|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+          <td class="text-end">{% if b.quantity > 0 %}{{ b.total_value|floatformat:2|intcomma }}{% else %}<span class="text-muted small">не определена</span>{% endif %}</td>
         </tr>
+        {% if b.summary %}
+        <tr class="table-light small">
+          <td colspan="8" class="text-muted">
+            Справочно по складу «{{ b.warehouse.name }}», все организации: в наличии {{ b.summary.quantity|floatformat:"-3"|intcomma }}
+            на {{ b.summary.value|floatformat:2|intcomma }} ₽{% if b.summary.average is not None %} (средняя имеющегося товара {{ b.summary.average|floatformat:2|intcomma }}){% endif %}{% if b.summary.deficit %};
+            дефицит {{ b.summary.deficit|floatformat:"-3"|intcomma }} — стоимость не определена{% endif %}.
+            Для проведения документов не используется: у каждой организации свой остаток.
+          </td>
+        </tr>
+        {% endif %}
         {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-4">Остатков нет — проведите приёмку товара</td></tr>
+        <tr><td colspan="8" class="text-center text-muted py-4">Остатков нет — проведите приёмку товара</td></tr>
         {% endfor %}
       </tbody>
       {% if balances %}
       <tfoot class="table-light">
         <tr>
-          <td colspan="6" class="text-end fw-semibold">Итого стоимость остатков:</td>
+          <td colspan="7" class="text-end fw-semibold">Итого стоимость имеющегося товара{% if not active_organization %} (сумма по организациям){% endif %}:</td>
           <td class="text-end fw-bold">{{ total_value|floatformat:2|intcomma }} ₽</td>
         </tr>
+        {% if deficit_rows %}
+        <tr>
+          <td colspan="7" class="text-end text-muted">Дефицит (продано раньше поступления, стоимость не определена), строк {{ deficit_rows }}:</td>
+          <td class="text-end">{{ deficit_quantity|floatformat:"-3"|intcomma }}</td>
+        </tr>
+        {% endif %}
       </tfoot>
       {% endif %}
     </table>
   </div>
 </div>
+{% endif %}
 {% endblock %}

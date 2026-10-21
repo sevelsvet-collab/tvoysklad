@@ -2,29 +2,26 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import DecimalField, Q, Sum, Value
-from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, ListView, UpdateView
 
 from apps.core import roles, submit_once
-from apps.core.constants import DOC_POSTED, DOC_STATUS_CHOICES
+from apps.core.constants import DOC_STATUS_CHOICES
 from apps.core.bulk import bulk_delete_view
 from apps.core.listing import (
     ChoiceFilter, FilteredListMixin, PeriodFilter, TextFilter, delete_action, organizations,
 )
-from apps.core.permissions import RoleRequiredMixin
-from apps.partners.models import Counterparty
-from apps.purchases.models import Receipt
+from apps.core.permissions import RoleRequiredMixin, role_required
 from apps.sales.models import Invoice
 
+from . import settlements
 from .forms import AccountCorrectionForm, AccountForm, PaymentForm, SettlementCorrectionForm
 from .models import Account, AccountCorrection, Payment, SettlementCorrection
+from .services import PaymentError
 
 MONEY_ROLES = [roles.ROLE_ADMIN, roles.ROLE_ACCOUNTANT, roles.ROLE_MANAGER]
-_ZERO = Value(Decimal("0"), output_field=DecimalField(max_digits=18, decimal_places=2))
 
 
 # ---------- Счета и кассы ----------
@@ -73,6 +70,7 @@ class PaymentListView(FilteredListMixin, RoleRequiredMixin, ListView):
     list_filters = [
         PeriodFilter(),
         ChoiceFilter("kind", "Вид", choices=Payment.KIND_CHOICES),
+        ChoiceFilter("settlement_purpose", "Назначение для взаиморасчётов", choices=Payment.PURPOSE_CHOICES),
         TextFilter("partner", "Контрагент", "counterparty__name", placeholder="Наименование"),
         ChoiceFilter("status", "Статус", choices=DOC_STATUS_CHOICES),
         ChoiceFilter("organization", "Организация", "organization_id", organizations),
@@ -93,6 +91,11 @@ class PaymentEditBase(RoleRequiredMixin):
     def get_success_url(self):
         return reverse("payment_edit", args=[self.object.pk])
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["posting"] = self.request.method == "POST" and self.request.POST.get("action") == "save_post"
+        return kwargs
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         kind = self.object.kind if self.object else self.kind
@@ -101,8 +104,22 @@ class PaymentEditBase(RoleRequiredMixin):
         ctx["submit_token"] = submit_once.new_token()
         return ctx
 
-    @transaction.atomic
     def form_valid(self, form):
+        """Сохранение, проведение и пересчёт оплаты счетов — одна транзакция:
+        при любой ошибке не остаётся ни изменённого платежа, ни старой оплаты."""
+        creating = form.instance.pk is None
+        try:
+            with transaction.atomic():
+                return self._save(form)
+        except PaymentError as exc:
+            for field, text in exc.errors.items():
+                form.add_error(field if field in form.fields else None, text)
+            if creating:
+                form.instance.pk = None      # сохранение откатилось — платежа в базе нет
+                self.object = None
+            return self.form_invalid(form)
+
+    def _save(self, form):
         creating = form.instance.pk is None
         if creating:
             duplicate = submit_once.claim(self.request)
@@ -151,14 +168,20 @@ class PaymentUpdateView(PaymentEditBase, UpdateView):
 
 
 @require_POST
+@role_required(*MONEY_ROLES)
 def payment_post(request, pk):
     payment = get_object_or_404(Payment, pk=pk)
-    payment.post()
+    try:
+        payment.post()
+    except PaymentError as exc:
+        messages.error(request, f"Платёж не проведён: {exc}")
+        return redirect("payment_edit", pk=pk)
     messages.success(request, f"{payment} — проведён")
     return redirect("payment_edit", pk=pk)
 
 
 @require_POST
+@role_required(*MONEY_ROLES)
 def payment_unpost(request, pk):
     payment = get_object_or_404(Payment, pk=pk)
     payment.unpost()
@@ -167,22 +190,20 @@ def payment_unpost(request, pk):
 
 
 @require_POST
+@role_required(*MONEY_ROLES)
 def payment_delete(request, pk):
     payment = get_object_or_404(Payment, pk=pk)
-    invoice = payment.invoice
-    payment.delete()
-    if invoice:
-        from .models import recompute_invoice_paid
-
-        recompute_invoice_paid(invoice)
+    payment.delete()        # оплату счёта пересчитывает сам платёж, в той же транзакции
     messages.info(request, "Платёж удалён")
     return redirect("payment_list")
 
 
 @require_POST
+@role_required(*MONEY_ROLES)
 def invoice_to_payment(request, pk, account_kind=Account.KIND_BANK):
     """Платёж по счёту: на расчётный счёт или наличными в кассу (приходный ордер)."""
     invoice = get_object_or_404(Invoice, pk=pk)
+    # счёт или касса — только организации, выставившей счёт; нет — заводится для неё
     account, created = Account.ensure_default(account_kind, invoice.organization)
     if account is None:
         messages.error(request, "Сначала заведите организацию в настройках")
@@ -191,11 +212,18 @@ def invoice_to_payment(request, pk, account_kind=Account.KIND_BANK):
         messages.info(request, f"Создана «{account.name}» — проверьте реквизиты "
                                "в разделе «Деньги → Счета и кассы»")
     remaining = invoice.total - invoice.paid_amount
+    if remaining <= 0:
+        # нулевой платёж «на всякий случай» не создаём; переплату можно
+        # оформить вручную обычным входящим платежом
+        messages.info(request, f"{invoice} уже оплачен полностью — неоплаченного остатка нет. "
+                               "Если нужна оплата сверх суммы счёта, создайте входящий платёж вручную")
+        return redirect("invoice_edit", pk=pk)
     payment = Payment.objects.create(
         kind=Payment.KIND_IN, organization=invoice.organization,
         account=account, counterparty=invoice.customer, invoice=invoice,
-        amount=remaining if remaining > 0 else Decimal("0"),
+        amount=remaining,
         purpose=f"Оплата по счёту № {invoice.number} от {invoice.date:%d.%m.%Y}",
+        settlement_purpose=Payment.PURPOSE_CUSTOMER_PAYMENT,     # счёт — продажа
     )
     what = "приходный ордер" if account_kind == Account.KIND_CASH else "входящий платёж"
     messages.success(request, f"Создан {what} № {payment.number} — проверьте и проведите")
@@ -205,74 +233,21 @@ def invoice_to_payment(request, pk, account_kind=Account.KIND_BANK):
 # ---------- Взаиморасчёты ----------
 
 class SettlementsView(RoleRequiredMixin, ListView):
+    """Взаиморасчёты: строки — пары «организация + контрагент», расчёт —
+    apps/finance/settlements.py (тот же, что в карточке контрагента).
+    Только чтение."""
+
     allowed_roles = MONEY_ROLES
     template_name = "finance/settlements.html"
     context_object_name = "rows"
 
     def get_queryset(self):
-        rows = []
-        for cp in Counterparty.objects.all():
-            # Invoice.total / Receipt.total — Python-свойства (сумма строк), считаем перебором
-            sales_total = _sum_invoice_totals(cp)
-            purch_total = _sum_receipt_totals(cp)
-            paid_in = Payment.objects.filter(counterparty=cp, kind=Payment.KIND_IN, status=DOC_POSTED).aggregate(
-                s=Coalesce(Sum("amount"), _ZERO))["s"]
-            paid_out = Payment.objects.filter(counterparty=cp, kind=Payment.KIND_OUT, status=DOC_POSTED).aggregate(
-                s=Coalesce(Sum("amount"), _ZERO))["s"]
+        return settlements.settlement_pairs()
 
-            cust_return = _sum_customer_returns(cp)   # мы вернули покупателю (уменьшает его долг)
-            supp_return = _sum_supplier_returns(cp)   # мы вернули поставщику (уменьшает наш долг)
-
-            correction = SettlementCorrection.objects.filter(
-                counterparty=cp, status=DOC_POSTED).aggregate(
-                s=Coalesce(Sum("amount", filter=Q(direction=SettlementCorrection.DIR_THEY_OWE)), _ZERO)
-                - Coalesce(Sum("amount", filter=Q(direction=SettlementCorrection.DIR_WE_OWE)), _ZERO))["s"]
-
-            they_owe = sales_total - cust_return - paid_in   # долг покупателя нам
-            we_owe = purch_total - supp_return - paid_out    # наш долг поставщику
-            balance = they_owe - we_owe + correction         # >0 — нам должны, <0 — мы должны
-            if sales_total or paid_in or purch_total or paid_out or cust_return or supp_return or correction:
-                rows.append({
-                    "cp": cp, "sales": sales_total, "paid_in": paid_in,
-                    "purch": purch_total, "paid_out": paid_out,
-                    "cust_return": cust_return, "supp_return": supp_return,
-                    "correction": correction,
-                    "they_owe": they_owe, "we_owe": we_owe, "balance": balance,
-                })
-        rows.sort(key=lambda r: abs(r["balance"]), reverse=True)
-        return rows
-
-
-def _sum_invoice_totals(counterparty):
-    total = Decimal("0")
-    for inv in Invoice.objects.filter(customer=counterparty, status=Invoice.STATUS_ISSUED).prefetch_related("lines"):
-        total += inv.total
-    return total
-
-
-def _sum_receipt_totals(counterparty):
-    total = Decimal("0")
-    for r in Receipt.objects.filter(supplier=counterparty, status=DOC_POSTED).prefetch_related("lines"):
-        total += r.total
-    return total
-
-
-def _sum_customer_returns(counterparty):
-    from apps.sales.models import CustomerReturn
-
-    total = Decimal("0")
-    for r in CustomerReturn.objects.filter(customer=counterparty, status=DOC_POSTED).prefetch_related("lines"):
-        total += r.total
-    return total
-
-
-def _sum_supplier_returns(counterparty):
-    from apps.purchases.models import SupplierReturn
-
-    total = Decimal("0")
-    for r in SupplierReturn.objects.filter(supplier=counterparty, status=DOC_POSTED).prefetch_related("lines"):
-        total += r.total
-    return total
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["totals"] = settlements.totals(ctx["rows"])
+        return ctx
 
 
 # ---------- Корректировки ----------
@@ -343,12 +318,24 @@ class AccountCorrectionEditBase(_CorrectionEditMixin):
         return reverse("account_correction_edit", args=[self.object.pk])
 
     def form_valid(self, form):
-        # Сохраняем, затем пересчитываем разницу от актуального остатка счёта.
-        self.object = form.save()
-        self.object.recalc()
-        self.object.save(update_fields=["balance_before", "amount"])
+        # Расчётный остаток и разницу считает сама модель при сохранении и
+        # проведении — по истории кассы на момент документа (правило «остаток
+        # на момент»). Отказ модели (касса другой организации — например, её
+        # успели передать после проверки формы) откатывает всё сохранение.
+        creating = form.instance.pk is None
+        try:
+            with transaction.atomic():
+                self.object = form.save()
+                if self.request.POST.get("action") == "save_post":
+                    self.object.post()
+        except PaymentError as exc:
+            for field, text in exc.errors.items():
+                form.add_error(field if field in form.fields else None, text)
+            if creating:
+                form.instance.pk = None      # сохранение откатилось — корректировки в базе нет
+                self.object = None
+            return self.form_invalid(form)
         if self.request.POST.get("action") == "save_post":
-            self.object.post()
             messages.success(self.request, f"{self.object} — проведена")
         else:
             messages.success(self.request, f"{self.object} — сохранена")
@@ -394,14 +381,20 @@ class SettlementCorrectionUpdateView(SettlementCorrectionEditBase, UpdateView):
 
 
 @require_POST
+@role_required(*MONEY_ROLES)
 def account_correction_post(request, pk):
     obj = get_object_or_404(AccountCorrection, pk=pk)
-    obj.post()
+    try:
+        obj.post()
+    except PaymentError as exc:
+        messages.error(request, f"Не удалось провести: {exc}")
+        return redirect("account_correction_edit", pk=pk)
     messages.success(request, f"{obj} — проведена")
     return redirect("account_correction_edit", pk=pk)
 
 
 @require_POST
+@role_required(*MONEY_ROLES)
 def account_correction_unpost(request, pk):
     obj = get_object_or_404(AccountCorrection, pk=pk)
     obj.unpost()
@@ -410,6 +403,7 @@ def account_correction_unpost(request, pk):
 
 
 @require_POST
+@role_required(*MONEY_ROLES)
 def account_correction_delete(request, pk):
     get_object_or_404(AccountCorrection, pk=pk).delete()
     messages.info(request, "Корректировка удалена")
@@ -417,6 +411,7 @@ def account_correction_delete(request, pk):
 
 
 @require_POST
+@role_required(*MONEY_ROLES)
 def settlement_correction_post(request, pk):
     obj = get_object_or_404(SettlementCorrection, pk=pk)
     obj.post()
@@ -425,6 +420,7 @@ def settlement_correction_post(request, pk):
 
 
 @require_POST
+@role_required(*MONEY_ROLES)
 def settlement_correction_unpost(request, pk):
     obj = get_object_or_404(SettlementCorrection, pk=pk)
     obj.unpost()
@@ -433,6 +429,7 @@ def settlement_correction_unpost(request, pk):
 
 
 @require_POST
+@role_required(*MONEY_ROLES)
 def settlement_correction_delete(request, pk):
     get_object_or_404(SettlementCorrection, pk=pk).delete()
     messages.info(request, "Корректировка удалена")

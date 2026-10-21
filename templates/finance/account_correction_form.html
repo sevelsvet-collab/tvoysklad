@@ -18,21 +18,23 @@
         <div class="col-12"><label class="form-label">{% if is_cash %}Касса{% else %}Расчётный счёт{% endif %}</label>{{ form.account }}
           {% if form.account.errors %}<div class="text-danger small">{{ form.account.errors.0 }}</div>{% endif %}</div>
 
-        {% if object %}
-        <div class="col-md-6">
-          <label class="form-label">Расчётный остаток был</label>
-          <div class="form-control-plaintext fw-semibold">{{ object.balance_before|floatformat:2|intcomma }} ₽</div>
-        </div>
-        {% endif %}
-        <div class="col-md-6"><label class="form-label">Фактический остаток, ₽</label>{{ form.actual_balance }}
+        <div class="col-md-6"><label class="form-label">Фактический остаток на дату и время документа, ₽</label>{{ form.actual_balance }}
           {% if form.actual_balance.errors %}<div class="text-danger small">{{ form.actual_balance.errors.0 }}</div>{% endif %}
-          <div class="form-text">Введите фактическую сумму — система посчитает разницу.</div></div>
-
+          <div class="form-text">Сколько фактически было в кассе или на счёте в указанные дату и время.</div></div>
         {% if object %}
-        <div class="col-12">
+        <div class="col-md-6" data-balance-before>
+          <label class="form-label">Расчётный остаток на {{ object.date|date:"d.m.Y" }} {{ object.time|time:"H:i" }}</label>
+          <div class="form-control-plaintext fw-semibold">{{ object.balance_before|floatformat:2|intcomma }} ₽</div>
+          <div class="form-text">По документам раньше этого момента{% if not object.is_posted %} — предварительно{% endif %}.</div>
+        </div>
+        <div class="col-12" data-correction-amount>
           <div class="alert {% if object.amount < 0 %}alert-warning{% else %}alert-success{% endif %} py-2 mb-0">
-            Корректировка: <b>{% if object.amount > 0 %}+{% endif %}{{ object.amount|floatformat:2|intcomma }} ₽</b>
-            {% if object.is_posted %} — учтена в остатке счёта{% else %} (проведите, чтобы применить){% endif %}
+            {% if object.amount > 0 %}Излишек{% elif object.amount < 0 %}Недостача{% else %}Расхождения нет{% endif %}:
+            <b>{% if object.amount > 0 %}+{% endif %}{{ object.amount|floatformat:2|intcomma }} ₽</b>
+            {% if object.is_posted %} — учтена в остатке счёта{% else %} (предварительно; проведите, чтобы применить){% endif %}
+            <div class="small mt-1">Разница = фактический остаток − расчётный. Она может уточниться, если изменятся
+              документы раньше этого момента (платежи, начальный остаток, более ранние корректировки); остаток после
+              корректировки всегда начинается с введённого факта.</div>
           </div>
         </div>
         {% endif %}

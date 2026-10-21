@@ -15,17 +15,28 @@ SEARCH_LIMIT = 15
 EDIT_ROLES = [roles.ROLE_ADMIN, roles.ROLE_MANAGER, roles.ROLE_STOREKEEPER]
 
 
-def _stock_map(product_ids, warehouse_id=None):
-    """{product_id: остаток} — по конкретному складу или суммарно по всем."""
+def _stock_map(product_ids, warehouse_id=None, organization_id=None):
+    """{product_id: остаток} организации документа — на складе или по всем её
+    складам. Без организации остатка нет (None): товар разных организаций не
+    складывается. До завершения перехода на учёт по организациям — тоже None."""
+    from apps.inventory import transition
     from apps.inventory.models import StockBalance
 
-    qs = StockBalance.objects.filter(product_id__in=product_ids)
+    if not organization_id or not str(organization_id).isdigit() or not transition.is_ready():
+        return None
+    qs = StockBalance.objects.filter(product_id__in=product_ids, organization_id=organization_id)
     if warehouse_id:
         qs = qs.filter(warehouse_id=warehouse_id)
     return {
         row["product_id"]: row["total"]
         for row in qs.values("product_id").annotate(total=Sum("quantity"))
     }
+
+
+def _stock_of(stocks, product):
+    if product.is_service or stocks is None:
+        return None
+    return stocks.get(product.pk, Decimal("0"))
 
 
 def _serialize(product, stock, price_source):
@@ -56,6 +67,7 @@ def product_search(request):
     """
     q = request.GET.get("q", "").strip()
     warehouse_id = request.GET.get("warehouse") or None
+    organization_id = request.GET.get("organization") or None
     price_source = request.GET.get("price", "purchase")
 
     product_id = request.GET.get("id", "")
@@ -72,11 +84,8 @@ def product_search(request):
             )
     products = list(qs.order_by("name")[:SEARCH_LIMIT])
 
-    stocks = _stock_map([p.pk for p in products], warehouse_id)
-    results = [
-        _serialize(p, None if p.is_service else stocks.get(p.pk, Decimal("0")), price_source)
-        for p in products
-    ]
+    stocks = _stock_map([p.pk for p in products], warehouse_id, organization_id)
+    results = [_serialize(p, _stock_of(stocks, p), price_source) for p in products]
 
     auto_select = None
     if q.isdigit() and len(q) >= 6:
@@ -98,10 +107,11 @@ def product_stock(request):
     ids = [int(x) for x in raw.split(",") if x.strip().isdigit()]
     warehouse_id = request.GET.get("warehouse") or None
 
-    stocks = _stock_map(ids, warehouse_id)
+    stocks = _stock_map(ids, warehouse_id, request.GET.get("organization") or None)
     data = {}
     for product in Product.objects.filter(id__in=ids).select_related("unit"):
-        stock = None if product.is_service else float(stocks.get(product.pk, Decimal("0")))
+        value = _stock_of(stocks, product)
+        stock = None if value is None else float(value)
         data[str(product.pk)] = {
             "stock": stock,
             "available": stock,  # без резервов равно остатку
@@ -122,10 +132,11 @@ def product_quick_create(request):
     existing = Product.objects.filter(name__iexact=name, is_active=True).select_related("unit").first()
     if existing:
         price_source = request.POST.get("price", "purchase")
-        stocks = _stock_map([existing.pk], request.POST.get("warehouse") or None)
+        stocks = _stock_map([existing.pk], request.POST.get("warehouse") or None,
+                            request.POST.get("organization") or None)
         return JsonResponse({
             "ok": True, "created": False,
-            "product": _serialize(existing, stocks.get(existing.pk, Decimal("0")), price_source),
+            "product": _serialize(existing, _stock_of(stocks, existing), price_source),
         })
 
     unit = Unit.objects.filter(name="шт").first() or Unit.objects.first()

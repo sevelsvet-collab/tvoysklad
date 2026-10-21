@@ -52,7 +52,18 @@ class DocumentHeaderMixin:
         time.input_formats = ["%H:%M", "%H:%M:%S"]
 
     def clean_time(self):
-        return self.cleaned_data.get("time") or self.instance.time or current_time()
+        """Время документа. Поле показывает часы и минуты, а хранятся и секунды:
+        если пользователь время не менял, оставляем прежнее целиком. Иначе
+        каждое сохранение обрезало бы секунды и могло бы переставить документ
+        раньше другого, созданного в ту же минуту (порядок операций на складе
+        определяется датой и временем документа)."""
+        value = self.cleaned_data.get("time")
+        stored = self.instance.time if self.instance.pk else None
+        if value is None:
+            return stored or current_time()
+        if stored and (value.hour, value.minute, value.second) == (stored.hour, stored.minute, 0):
+            return stored
+        return value
 
     def number_scope(self):
         """Серия номеров: у видов (приход/расход) — своя."""

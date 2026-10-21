@@ -6,11 +6,12 @@ from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, ListView, UpdateView
 
 from apps.core import roles
-from apps.core.constants import DOC_POSTED
+from apps.core.based_on import create_return
 from apps.core.bulk import bulk_delete_view
 from apps.core.document_edit import LineDocumentMixin
 from apps.core.listing import FilteredListMixin, delete_action, document_filters
-from apps.core.permissions import RoleRequiredMixin
+from apps.core.permissions import RoleRequiredMixin, role_required
+from apps.inventory.services import StockError
 from apps.partners.models import Counterparty
 
 from .forms import (
@@ -66,6 +67,7 @@ class ReceiptUpdateView(RoleRequiredMixin, LineDocumentMixin, UpdateView):
 
 
 @require_POST
+@role_required(*EDIT_ROLES)
 def receipt_post(request, pk):
     receipt = get_object_or_404(Receipt, pk=pk)
     try:
@@ -77,19 +79,27 @@ def receipt_post(request, pk):
 
 
 @require_POST
+@role_required(*EDIT_ROLES)
 def receipt_unpost(request, pk):
     receipt = get_object_or_404(Receipt, pk=pk)
-    receipt.unpost()
+    try:
+        receipt.unpost()
+    except StockError as exc:
+        messages.error(request, f"Не удалось снять с проведения: {exc}")
+        return redirect("receipt_edit", pk=pk)
     messages.info(request, f"{receipt} — снят с проведения")
     return redirect("receipt_edit", pk=pk)
 
 
 @require_POST
+@role_required(*EDIT_ROLES)
 def receipt_delete(request, pk):
     receipt = get_object_or_404(Receipt, pk=pk)
-    if receipt.status == DOC_POSTED:
-        receipt.unpost()
-    receipt.delete()
+    try:
+        receipt.delete()   # проведённый снимается с проведения — с проверкой остатков
+    except StockError as exc:
+        messages.error(request, f"Не удалось удалить: {exc}")
+        return redirect("receipt_edit", pk=pk)
     messages.info(request, "Приёмка удалена")
     return redirect("receipt_list")
 
@@ -139,6 +149,7 @@ class SupplierReturnUpdateView(RoleRequiredMixin, LineDocumentMixin, UpdateView)
 
 
 @require_POST
+@role_required(*EDIT_ROLES)
 def supplier_return_post(request, pk):
     doc = get_object_or_404(SupplierReturn, pk=pk)
     try:
@@ -150,36 +161,45 @@ def supplier_return_post(request, pk):
 
 
 @require_POST
+@role_required(*EDIT_ROLES)
 def supplier_return_unpost(request, pk):
     doc = get_object_or_404(SupplierReturn, pk=pk)
-    doc.unpost()
+    try:
+        doc.unpost()
+    except StockError as exc:
+        messages.error(request, f"Не удалось снять с проведения: {exc}")
+        return redirect("supplier_return_edit", pk=pk)
     messages.info(request, f"{doc} — снят с проведения")
     return redirect("supplier_return_edit", pk=pk)
 
 
 @require_POST
+@role_required(*EDIT_ROLES)
 def supplier_return_delete(request, pk):
     doc = get_object_or_404(SupplierReturn, pk=pk)
-    if doc.status == DOC_POSTED:
-        doc.unpost()
-    doc.delete()
+    try:
+        doc.delete()   # проведённый снимается с проведения — с проверкой остатков
+    except StockError as exc:
+        messages.error(request, f"Не удалось удалить: {exc}")
+        return redirect("supplier_return_edit", pk=pk)
     messages.info(request, "Возврат поставщику удалён")
     return redirect("supplier_return_list")
 
 
 @require_POST
+@role_required(*EDIT_ROLES)
 def receipt_to_return(request, pk):
     """Создать возврат поставщику на основании приёмки (копирует шапку и строки)."""
     receipt = get_object_or_404(Receipt, pk=pk)
-    doc = SupplierReturn.objects.create(
-        organization=receipt.organization, warehouse=receipt.warehouse,
-        supplier=receipt.supplier, receipt=receipt,
-    )
-    for line in receipt.lines.all():
-        SupplierReturnLine.objects.create(
-            document=doc, product=line.product, quantity=line.quantity,
-            price=line.price, vat_rate=line.vat_rate,
-        )
+    # Переносим то, что ещё не возвращено, с теми же ценами, скидками и НДС;
+    # из серийных номеров — только ещё не возвращённые.
+    doc, nothing_left = create_return(receipt, SupplierReturn, SupplierReturnLine, {
+        "organization": receipt.organization, "warehouse": receipt.warehouse,
+        "supplier": receipt.supplier, "receipt": receipt,
+    })
+    if doc is None:
+        messages.warning(request, nothing_left)
+        return redirect("receipt_edit", pk=receipt.pk)
     messages.success(request, f"Создан возврат поставщику № {doc.number} — проверьте и проведите")
     return redirect("supplier_return_edit", pk=doc.pk)
 

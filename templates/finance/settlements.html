@@ -1,48 +1,17 @@
 {% extends "base.html" %}
-{% load humanize %}
 {% block title %}Взаиморасчёты — Склад{% endblock %}
 {% block page_title %}Взаиморасчёты с контрагентами{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-      <thead class="table-light">
-        <tr>
-          <th>Контрагент</th>
-          <th class="text-end">Продажи (счета)</th>
-          <th class="text-end">Оплатил нам</th>
-          <th class="text-end">Возврат нам</th>
-          <th class="text-end">Закупки</th>
-          <th class="text-end">Оплатили ему</th>
-          <th class="text-end">Возврат ему</th>
-          <th class="text-end">Корректировка</th>
-          <th class="text-end">Сальдо</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rows %}
-        <tr onclick="window.location='{% url 'counterparty_edit' r.cp.pk %}'">
-          <td class="fw-semibold">{{ r.cp.name }}</td>
-          <td class="text-end">{{ r.sales|floatformat:2|intcomma }}</td>
-          <td class="text-end">{{ r.paid_in|floatformat:2|intcomma }}</td>
-          <td class="text-end">{% if r.cust_return %}{{ r.cust_return|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
-          <td class="text-end">{{ r.purch|floatformat:2|intcomma }}</td>
-          <td class="text-end">{{ r.paid_out|floatformat:2|intcomma }}</td>
-          <td class="text-end">{% if r.supp_return %}{{ r.supp_return|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
-          <td class="text-end">{% if r.correction %}<span class="{% if r.correction < 0 %}text-danger{% else %}text-success{% endif %}">{% if r.correction > 0 %}+{% endif %}{{ r.correction|floatformat:2|intcomma }}</span>{% else %}—{% endif %}</td>
-          <td class="text-end fw-bold {% if r.balance > 0 %}text-success{% elif r.balance < 0 %}text-danger{% endif %}">
-            {{ r.balance|floatformat:2|intcomma }}
-            {% if r.balance > 0 %}<div class="small text-muted">нам должны</div>
-            {% elif r.balance < 0 %}<div class="small text-muted">мы должны</div>{% endif %}
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="9" class="text-center text-muted py-4">Пока нет движений по контрагентам</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+{% include "finance/_settlement_totals.html" %}
+{% include "finance/_settlement_pairs.html" with pairs=rows show_counterparty=True %}
+<div class="text-muted small mt-2">
+  <p class="mb-1">Каждая строка — пара «наша организация + контрагент»: документы разных организаций друг друга не гасят.
+  Учитываются проведённые отгрузки, приёмки, возвраты, платежи и корректировки взаиморасчётов.
+  Выставленный счёт задолженность не создаёт — его оплата и отгрузки по нему показаны справочно.</p>
+  <p class="mb-1">По продажам: отгрузки − возвраты покупателя − оплаты от покупателя + возвраты денег покупателю.
+  По закупкам: приёмки − возвраты поставщику − оплаты поставщику + возвраты денег от поставщика.
+  Платежи учитываются по полю «Назначение для взаиморасчётов»; «не распределено» показывается отдельно.</p>
+  <p class="mb-0">Взаимозачёт автоматически не выполняется: встречные задолженности по продажам и закупкам показаны раздельно.
+  Разница по документам — справочная величина и не означает, что всё оплачено.</p>
 </div>
-<p class="text-muted small mt-2">Сальдо &gt; 0 — контрагент должен вам; &lt; 0 — вы должны контрагенту.
-Учитываются выставленные счета, проведённые приёмки и проведённые платежи.</p>
 {% endblock %}

@@ -12,7 +12,7 @@ from apps.core.constants import (
     vat_amount,
 )
 from apps.core.models import assign_document_number, current_time
-from apps.inventory.posting import PostableMixin
+from apps.inventory.posting import DocumentLineMixin, DocumentLineQuerySet, PostableMixin, PostableQuerySet
 
 
 class Receipt(PostableMixin, models.Model):
@@ -36,6 +36,8 @@ class Receipt(PostableMixin, models.Model):
     status = models.CharField("Статус", max_length=16, choices=DOC_STATUS_CHOICES, default=DOC_DRAFT)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    objects = PostableQuerySet.as_manager()
+
     class Meta:
         verbose_name = "Приёмка"
         verbose_name_plural = "Приёмки"
@@ -44,17 +46,20 @@ class Receipt(PostableMixin, models.Model):
     def __str__(self):
         return f"Приёмка № {self.number} от {self.date:%d.%m.%Y}"
 
-    def save(self, *args, **kwargs):
+    def assign_number(self):
         assign_document_number(self, self.DOC_TYPE)
-        super().save(*args, **kwargs)
 
     def build_specs(self):
+        from apps.inventory import services
+
+        # Стоимость поступления — сумма строки со скидкой поставщика
+        # (ReceiptLine.total); её берёт costing прямо из строки (правило 1).
         return [
             {
                 "product_id": line.product_id, "warehouse_id": self.warehouse_id,
-                "quantity": line.quantity, "cost": line.price,
+                "quantity": line.quantity, "cost": services.COST_BY_HISTORY, "line_id": line.pk,
             }
-            for line in self.lines.all()
+            for line in self.lines.order_by("pk")
         ]
 
     @property
@@ -78,7 +83,9 @@ class Receipt(PostableMixin, models.Model):
         return docs
 
 
-class ReceiptLine(models.Model):
+class ReceiptLine(DocumentLineMixin, models.Model):
+    DOCUMENT_FIELD = "receipt"
+
     receipt = models.ForeignKey(Receipt, on_delete=models.CASCADE, related_name="lines")
     product = models.ForeignKey("catalog.Product", on_delete=models.PROTECT, verbose_name="Товар")
     quantity = models.DecimalField("Количество", max_digits=15, decimal_places=3, default=1)
@@ -87,8 +94,11 @@ class ReceiptLine(models.Model):
     discount = models.DecimalField("Скидка, %", max_digits=6, decimal_places=3, default=0)
     vat_rate = models.CharField("Ставка НДС", max_length=8, choices=VAT_CHOICES, default=VAT_20)
 
+    objects = DocumentLineQuerySet.as_manager()
+
     class Meta:
         verbose_name = "Строка приёмки"
+        base_manager_name = "objects"   # связанный менеджер (add) — через защиту строк
         verbose_name_plural = "Строки приёмки"
 
     def __str__(self):
@@ -107,6 +117,9 @@ class SupplierReturn(PostableMixin, models.Model):
     """Возврат поставщику — товар уходит со склада обратно поставщику (расход)."""
 
     DOC_TYPE = "supplier_return"
+    # основание — учётный реквизит: меняется только в editing() с перепроведением (posting, правило 12)
+    STOCK_FIELDS = ("organization", "warehouse", "date", "time", "receipt")
+    BASIS_FIELDS = ("receipt",)
 
     number = models.CharField("Номер", max_length=32, blank=True)
     date = models.DateField("Дата", default=timezone.localdate)
@@ -124,6 +137,8 @@ class SupplierReturn(PostableMixin, models.Model):
     status = models.CharField("Статус", max_length=16, choices=DOC_STATUS_CHOICES, default=DOC_DRAFT)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    objects = PostableQuerySet.as_manager()
+
     class Meta:
         verbose_name = "Возврат поставщику"
         verbose_name_plural = "Возвраты поставщикам"
@@ -132,19 +147,17 @@ class SupplierReturn(PostableMixin, models.Model):
     def __str__(self):
         return f"Возврат поставщику № {self.number} от {self.date:%d.%m.%Y}"
 
-    def save(self, *args, **kwargs):
+    def assign_number(self):
         assign_document_number(self, self.DOC_TYPE)
-        super().save(*args, **kwargs)
 
     def build_specs(self):
         from apps.inventory import services
 
         specs = []
-        for line in self.lines.all():
-            avg = services.current_avg_cost(line.product_id, self.warehouse_id)
+        for line in self.lines.order_by("pk"):
             specs.append({
                 "product_id": line.product_id, "warehouse_id": self.warehouse_id,
-                "quantity": -line.quantity, "cost": avg,
+                "quantity": -line.quantity, "cost": services.COST_BY_HISTORY, "line_id": line.pk,
             })
         return specs
 
@@ -171,7 +184,9 @@ class SupplierReturn(PostableMixin, models.Model):
         return docs
 
 
-class SupplierReturnLine(models.Model):
+class SupplierReturnLine(DocumentLineMixin, models.Model):
+    DOCUMENT_FIELD = "document"
+
     document = models.ForeignKey(SupplierReturn, on_delete=models.CASCADE, related_name="lines")
     product = models.ForeignKey("catalog.Product", on_delete=models.PROTECT, verbose_name="Товар")
     quantity = models.DecimalField("Количество", max_digits=15, decimal_places=3, default=1)
@@ -180,8 +195,11 @@ class SupplierReturnLine(models.Model):
     discount = models.DecimalField("Скидка, %", max_digits=6, decimal_places=3, default=0)
     vat_rate = models.CharField("Ставка НДС", max_length=8, choices=VAT_CHOICES, default=VAT_20)
 
+    objects = DocumentLineQuerySet.as_manager()
+
     class Meta:
         verbose_name = "Строка возврата поставщику"
+        base_manager_name = "objects"   # связанный менеджер (add) — через защиту строк
         verbose_name_plural = "Строки возврата поставщику"
 
     def __str__(self):

@@ -130,6 +130,9 @@
     if (!url) return;
     var wh = warehouseSelect(root);
     var whId = wh && wh.value;
+    // остаток — организации документа: товар других организаций на складе не её
+    var org = document.querySelector('[name=' + (root.dataset.orgField || 'organization') + ']');
+    var orgId = org && org.value;
     var rowsById = {};
     root.querySelectorAll('.line-row').forEach(function (tr) {
       var p = tr.querySelector('.line-product');
@@ -137,7 +140,7 @@
     });
     var ids = Object.keys(rowsById);
     if (!ids.length) return;
-    fetch(url + '?ids=' + ids.join(',') + (whId ? '&warehouse=' + whId : ''))
+    fetch(url + '?ids=' + ids.join(',') + (whId ? '&warehouse=' + whId : '') + (orgId ? '&organization=' + orgId : ''))
       .then(function (r) { return r.json(); })
       .then(function (data) {
         Object.keys(rowsById).forEach(function (pid) {
@@ -320,6 +323,6 @@
     if (wh) wh.addEventListener('change', function () { refreshStocks(root); });
 
     var orgSelect = document.querySelector('[name=' + (root.dataset.orgField || 'organization') + ']');
-    if (orgSelect) orgSelect.addEventListener('change', function () { applyOrgVat(root); });
+    if (orgSelect) orgSelect.addEventListener('change', function () { applyOrgVat(root); refreshStocks(root); });
   });
 })();

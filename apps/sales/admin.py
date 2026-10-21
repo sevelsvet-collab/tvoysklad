@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from apps.inventory.admin_guard import StockDocumentAdmin
+
 from .models import (
     CustomerReturn,
     CustomerReturnLine,
@@ -28,7 +30,7 @@ class ShipmentLineInline(admin.TabularInline):
 
 
 @admin.register(Shipment)
-class ShipmentAdmin(admin.ModelAdmin):
+class ShipmentAdmin(StockDocumentAdmin):
     list_display = ("number", "date", "customer", "warehouse", "status")
     list_filter = ("status", "warehouse")
     inlines = [ShipmentLineInline]
@@ -40,7 +42,7 @@ class CustomerReturnLineInline(admin.TabularInline):
 
 
 @admin.register(CustomerReturn)
-class CustomerReturnAdmin(admin.ModelAdmin):
+class CustomerReturnAdmin(StockDocumentAdmin):
     list_display = ("number", "date", "customer", "warehouse", "status")
     list_filter = ("status", "warehouse")
     inlines = [CustomerReturnLineInline]

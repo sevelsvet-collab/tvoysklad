@@ -72,17 +72,21 @@
   </div>
   <div class="card-body">
     <table class="table table-sm mb-3">
-      <thead><tr><th>Склад</th><th class="text-end">Остаток</th><th class="text-end">С номерами</th><th class="text-end">Без номеров</th></tr></thead>
+      <thead><tr><th>Организация</th><th>Склад</th><th class="text-end">Остаток</th><th class="text-end">С номерами</th><th class="text-end">Без номеров</th></tr></thead>
       <tbody>
+        {% if not stock_ready %}
+        <tr><td colspan="5" class="text-warning">Складской учёт ещё не пересчитан по организациям после обновления — остатки появятся после пересчёта.</td></tr>
+        {% endif %}
         {% for r in serial_stock %}
         <tr>
+          <td>{% if r.organization %}{{ r.organization }}{% elif r.unknown_owner %}<span class="text-danger">не определена — решает человек</span>{% else %}—{% endif %}</td>
           <td>{{ r.warehouse }}</td>
-          <td class="text-end">{{ r.quantity|floatformat:"-3" }}</td>
+          <td class="text-end">{% if r.quantity is not None %}{{ r.quantity|floatformat:"-3" }}{% else %}—{% endif %}</td>
           <td class="text-end">{{ r.numbered }}</td>
           <td class="text-end{% if r.without %} text-danger fw-semibold{% endif %}">{{ r.without|floatformat:"-3" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="4" class="text-muted">Товара на складах нет — номера появятся с первой приёмкой</td></tr>
+        <tr><td colspan="5" class="text-muted">Товара на складах нет — номера появятся с первой приёмкой</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -93,8 +97,8 @@
         или отсканируйте их номера — по одному в строке. Без этого такой товар не получится отгрузить.</p>
       <div class="row g-2 align-items-start">
         <div class="col-md-4">
-          <select name="warehouse" class="form-select form-select-sm">
-            {% for r in serial_stock_missing %}<option value="{{ r.warehouse.pk }}">{{ r.warehouse }} — без номеров {{ r.without|floatformat:"-3" }}</option>{% endfor %}
+          <select name="place" class="form-select form-select-sm">
+            {% for r in serial_stock_missing %}<option value="{{ r.warehouse.pk }}:{{ r.organization.pk }}">{{ r.organization }}, {{ r.warehouse }} — без номеров {{ r.without|floatformat:"-3" }}</option>{% endfor %}
           </select>
         </div>
         <div class="col-md-5"><textarea name="numbers" rows="3" class="form-control form-control-sm" placeholder="Серийные номера, по одному в строке"></textarea></div>

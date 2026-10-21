@@ -110,9 +110,41 @@ class CustomerReturnForm(DocumentHeaderMixin, _HeaderDefaultsMixin, BootstrapFor
 class CustomerReturnLineForm(SkipEmptyLineMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = CustomerReturnLine
-        fields = ["product", "quantity", "serial_numbers", "price", "discount", "vat_rate"]
+        fields = ["product", "quantity", "serial_numbers", "price", "discount", "vat_rate", "shipment_line"]
+
+    def __init__(self, *args, basis=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        field = self.fields["shipment_line"]
+        field.required = False
+        field.label = "Строка отгрузки"
+        field.empty_label = "— определить автоматически —"
+        if basis is None:
+            field.queryset = ShipmentLine.objects.none()
+        else:
+            field.queryset = basis.lines.select_related("product").order_by("pk")
+            field.label_from_instance = lambda line: (
+                f"{line.product.name} × {line.quantity.normalize():f} по {line.price}"
+            )
+
+    def clean(self):
+        data = super().clean()
+        source, product = data.get("shipment_line"), data.get("product")
+        if source is not None and product is not None and source.product_id != product.pk:
+            self.add_error("shipment_line", "В выбранной строке отгрузки другой товар")
+        return data
+
+
+class CustomerReturnLineBaseFormSet(forms.BaseInlineFormSet):
+    """Строки возврата предлагают выбрать строку отгрузки-основания —
+    это нужно, когда в отгрузке товар записан несколькими строками."""
+
+    def get_form_kwargs(self, index):
+        kwargs = super().get_form_kwargs(index)
+        kwargs["basis"] = getattr(self.instance, "shipment", None) if self.instance.pk else None
+        return kwargs
 
 
 CustomerReturnLineFormSet = inlineformset_factory(
-    CustomerReturn, CustomerReturnLine, form=CustomerReturnLineForm, extra=0, can_delete=True,
+    CustomerReturn, CustomerReturnLine, form=CustomerReturnLineForm, formset=CustomerReturnLineBaseFormSet,
+    extra=0, can_delete=True,
 )

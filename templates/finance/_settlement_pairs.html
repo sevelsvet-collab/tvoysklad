@@ -1,0 +1,48 @@
+{% load humanize %}
+{# Строки расчёта: пара «организация + контрагент». show_counterparty — в отчёте; в карточке контрагента не нужен #}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Организация</th>
+          {% if show_counterparty %}<th>Контрагент</th>{% endif %}
+          <th class="text-end">По продажам</th>
+          <th class="text-end">По закупкам</th>
+          <th class="text-end">Не распределено</th>
+          <th class="text-end">Разница по документам<div class="small fw-normal text-muted">справочно</div></th>
+          <th>Состояние</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in pairs %}
+        <tr class="border-bottom-0">
+          <td class="border-bottom-0">{{ r.organization.name }}</td>
+          {% if show_counterparty %}<td class="fw-semibold border-bottom-0"><a href="{% url 'counterparty_edit' r.counterparty.pk %}" class="text-reset">{{ r.counterparty.name }}</a></td>{% endif %}
+          <td class="text-end text-nowrap border-bottom-0">{% if r.sales %}<span class="fw-semibold {% if r.sales > 0 %}text-success{% endif %}">{{ r.sales_amount|floatformat:2|intcomma }}</span><div class="small text-muted">{{ r.sales_label }}</div>{% else %}—{% endif %}</td>
+          <td class="text-end text-nowrap border-bottom-0">{% if r.purchases %}<span class="fw-semibold {% if r.purchases > 0 %}text-danger{% endif %}">{{ r.purchases_amount|floatformat:2|intcomma }}</span><div class="small text-muted">{{ r.purchases_label }}</div>{% else %}—{% endif %}</td>
+          <td class="text-end border-bottom-0" style="min-width:11rem">{% if r.unallocated_docs %}
+            <span class="badge text-bg-warning">{{ r.unallocated_docs|length }} док.</span>
+            {% if r.unallocated_payments %}<div class="small">получено {{ r.unallocated_in|floatformat:2|intcomma }}, уплачено {{ r.unallocated_out|floatformat:2|intcomma }}</div>{% endif %}
+            {% if r.unsided_corrections %}<div class="small">корректировки: «должен нам» {{ r.unsided_they_owe|floatformat:2|intcomma }}, «мы должны» {{ r.unsided_we_owe|floatformat:2|intcomma }}</div>{% endif %}
+          {% else %}—{% endif %}</td>
+          <td class="text-end text-nowrap border-bottom-0">{{ r.difference|floatformat:2|intcomma }}</td>
+          <td class="border-bottom-0">{% if not r.final %}<span class="badge text-bg-warning">{{ r.status }}</span>{% elif r.closed %}<span class="badge text-bg-success">{{ r.status }}</span>{% else %}<span class="badge text-bg-secondary">{{ r.status }}</span>{% endif %}</td>
+        </tr>
+        <tr>
+          <td colspan="{% if show_counterparty %}7{% else %}6{% endif %}" class="pt-0 small text-muted">
+            <ul class="mb-0 ps-3">{% for note in r.explanations %}<li>{{ note }}</li>{% endfor %}</ul>
+            {% if r.unallocated_docs %}
+            <div class="mt-1 text-body">Уточнить:
+              {% for d in r.unallocated_docs %}<a href="{{ d.url }}" class="me-2">{{ d.type_label }} № {{ d.number }} от {{ d.date|date:"d.m.Y" }}</a><span class="me-3">({{ d.effect }} {{ d.amount|floatformat:2|intcomma }})</span>{% endfor %}
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="{% if show_counterparty %}7{% else %}6{% endif %}" class="text-center text-muted py-4">Проведённых документов по расчётам нет</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

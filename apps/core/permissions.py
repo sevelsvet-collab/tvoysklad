@@ -1,17 +1,23 @@
 from functools import wraps
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 
 
 def role_required(*allowed_roles):
-    """Декоратор для функций-представлений (в т.ч. JSON API): проверяет роль пользователя."""
+    """Декоратор для функций-представлений (в т.ч. JSON API): проверяет роль пользователя.
+
+    Гость отправляется на страницу входа, пользователь без нужной роли получает 403.
+    Обязателен на каждом обработчике, который меняет данные: проверка CSRF
+    не заменяет проверку пользователя.
+    """
 
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
             if not request.user.is_authenticated:
-                raise PermissionDenied("Требуется вход в систему")
+                return redirect_to_login(request.get_full_path())
             if allowed_roles and not request.user.has_role(*allowed_roles):
                 raise PermissionDenied("Недостаточно прав")
             return view_func(request, *args, **kwargs)

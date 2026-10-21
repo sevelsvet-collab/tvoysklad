@@ -36,10 +36,14 @@
         </div>
         {% if form.invoice %}
         <div class="col-md-6"><label class="form-label">Счёт-основание</label>{{ form.invoice }}
+          {% if form.invoice.errors %}<div class="text-danger small">{{ form.invoice.errors.0 }}</div>{% endif %}
           <div class="form-text">Оплата привяжется к счёту и обновит его статус</div></div>
         {% endif %}
         <div class="col-md-6"><label class="form-label">Сумма, ₽</label>{{ form.amount }}
           {% if form.amount.errors %}<div class="text-danger small">{{ form.amount.errors.0 }}</div>{% endif %}</div>
+        <div class="col-md-6"><label class="form-label">Назначение для взаиморасчётов</label>{{ form.settlement_purpose }}
+          {% if form.settlement_purpose.errors %}<div class="text-danger small">{{ form.settlement_purpose.errors.0 }}</div>{% endif %}
+          <div class="form-text">Что оплачено — продажа или закупка. Текст назначения платежа ниже не заменяет</div></div>
         <div class="col-12"><label class="form-label">Назначение платежа</label>{{ form.purpose }}</div>
       </div>
     </div>

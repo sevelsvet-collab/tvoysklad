@@ -68,8 +68,23 @@
       <div class="d-flex gap-4 px-3 py-2 border-top text-muted small">
         <div>Выручка: <b>{{ object.total|floatformat:2|intcomma }} ₽</b></div>
         <div>Себестоимость: <b>{{ object.cost_total|floatformat:2|intcomma }} ₽</b></div>
-        <div class="text-success">Прибыль: <b>{{ object.profit_total|floatformat:2|intcomma }} ₽</b></div>
+        <div class="text-success">Прибыль: <b>{{ object.profit_total|floatformat:2|intcomma }} ₽</b>{% if object.cost_is_preliminary %} <span class="badge bg-warning text-dark">предварительная</span>{% endif %}</div>
       </div>
+      {% if object.cost_is_preliminary %}
+      <div class="alert alert-warning mx-3 mb-2 small" role="status" data-cost-preliminary>
+        <b>Себестоимость предварительная.</b> {{ object.cost_open_qty|floatformat:"-3" }} шт. продано раньше, чем товар поступил на склад:
+        их себестоимость ещё не определена и в сумму не входит, поэтому прибыль показана выше настоящей.
+        После поступления товара на этот склад себестоимость уточнится автоматически.
+      </div>
+      {% endif %}
+      {% with covers=object.deficit_covers %}{% if covers %}
+      <div class="px-3 py-2 border-top small text-muted" data-deficit-covers>
+        Продано раньше поступления — себестоимость определили поступления:
+        <ul class="mb-0">
+          {% for c in covers %}<li>{{ c.product.name }}: {{ c.cover_label }} — {{ c.quantity|floatformat:"-3" }} шт. на {{ c.amount|floatformat:2|intcomma }} ₽</li>{% endfor %}
+        </ul>
+      </div>
+      {% endif %}{% endwith %}
       {% endif %}
     </div>
     <div class="tab-pane fade" id="tab-related" role="tabpanel">

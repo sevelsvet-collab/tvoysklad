@@ -93,13 +93,16 @@ class ProductSearchApiTests(TestCase):
         self.assertEqual([r["name"] for r in by_article], ["Кабель HDMI"])
 
     def test_search_returns_stock_for_warehouse(self):
+        # ПРАВИЛО ДОПОЛНЕНО (учёт по организациям, 18.10.2026): остаток в подборе — организации
+        # документа; без организации он не показывается (товар разных организаций не
+        # складывается). Поэтому запрос передаёт организацию; ожидаемые остатки прежние.
         row = self.client.get(
-            reverse("api_product_search"), {"q": "ноут", "warehouse": self.wh.pk},
+            reverse("api_product_search"), {"q": "ноут", "warehouse": self.wh.pk, "organization": self.org.pk},
         ).json()["results"][0]
         self.assertEqual(row["stock"], 7)
 
         other = self.client.get(
-            reverse("api_product_search"), {"q": "ноут", "warehouse": self.wh2.pk},
+            reverse("api_product_search"), {"q": "ноут", "warehouse": self.wh2.pk, "organization": self.org.pk},
         ).json()["results"][0]
         self.assertEqual(other["stock"], 0)
 
@@ -163,9 +166,13 @@ class ProductSearchApiTests(TestCase):
         self.assertIsNone(data["auto_select"])
 
     def test_product_stock_endpoint(self):
+        # ПРАВИЛО ДОПОЛНЕНО (учёт по организациям, 18.10.2026): остаток в подборе — организации
+        # документа; без организации он не показывается (товар разных организаций не
+        # складывается). Поэтому запрос передаёт организацию; ожидаемые остатки прежние.
         data = self.client.get(
             reverse("api_product_stock"),
-            {"ids": f"{self.laptop.pk},{self.cable.pk},{self.service.pk}", "warehouse": self.wh.pk},
+            {"ids": f"{self.laptop.pk},{self.cable.pk},{self.service.pk}", "warehouse": self.wh.pk,
+             "organization": self.org.pk},
         ).json()["stock"]
         self.assertEqual(data[str(self.laptop.pk)], {"stock": 7.0, "available": 7.0, "unit": "шт"})
         self.assertEqual(data[str(self.cable.pk)]["stock"], 0.0)
