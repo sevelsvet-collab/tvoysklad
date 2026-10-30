@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% load l10n %}
 {% block title %}Остатки — Склад{% endblock %}
 {% block page_title %}Остатки{% if on_date %} на {{ on_date|date:"d.m.Y" }}{% endif %}{% endblock %}
 {% block content %}
@@ -9,19 +10,19 @@
   <select name="organization" class="form-select form-select-sm" style="max-width:220px;" onchange="this.form.submit()">
     <option value="">Все организации</option>
     {% for o in organizations %}
-      <option value="{{ o.pk }}" {% if active_organization == o.pk|stringformat:'s' %}selected{% endif %}>{{ o.name }}</option>
+      <option value="{{ o.pk|unlocalize }}" {% if active_organization == o.pk|stringformat:'s' %}selected{% endif %}>{{ o.name }}</option>
     {% endfor %}
   </select>
   <select name="warehouse" class="form-select form-select-sm" style="max-width:220px;" onchange="this.form.submit()">
     <option value="">Все склады</option>
     {% for w in warehouses %}
-      <option value="{{ w.pk }}" {% if active_warehouse == w.pk|stringformat:'s' %}selected{% endif %}>{{ w.name }}</option>
+      <option value="{{ w.pk|unlocalize }}" {% if active_warehouse == w.pk|stringformat:'s' %}selected{% endif %}>{{ w.name }}</option>
     {% endfor %}
   </select>
   <select name="group" class="form-select form-select-sm" style="max-width:220px;" onchange="this.form.submit()">
     <option value="">Все группы</option>
     {% for g in groups %}
-      <option value="{{ g.pk }}" {% if active_group == g.pk|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>
+      <option value="{{ g.pk|unlocalize }}" {% if active_group == g.pk|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>
     {% endfor %}
   </select>
   <label class="d-flex align-items-center gap-1 small text-muted">на дату

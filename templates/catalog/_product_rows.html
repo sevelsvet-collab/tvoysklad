@@ -1,7 +1,8 @@
 {% load humanize %}
+{% load l10n %}
 {% for p in products %}
 <tr data-url="{% url 'product_edit' p.pk %}"{% if not p.is_active %} class="text-muted"{% endif %}>
-  <td class="list-check-col"><input type="checkbox" name="ids" value="{{ p.pk }}" class="form-check-input list-check" aria-label="Выбрать"></td>
+  <td class="list-check-col"><input type="checkbox" name="ids" value="{{ p.pk|unlocalize }}" class="form-check-input list-check" aria-label="Выбрать"></td>
   <td class="fw-semibold">
     {{ p.name }}
     {% if not p.is_active %}<span class="badge text-bg-secondary ms-1">архив</span>{% endif %}

@@ -1,6 +1,7 @@
+{% load l10n %}
 {% for cp in counterparties %}
 <tr data-url="{% url 'counterparty_edit' cp.pk %}">
-  <td class="list-check-col"><input type="checkbox" name="ids" value="{{ cp.pk }}" class="form-check-input list-check" aria-label="Выбрать"></td>
+  <td class="list-check-col"><input type="checkbox" name="ids" value="{{ cp.pk|unlocalize }}" class="form-check-input list-check" aria-label="Выбрать"></td>
   <td class="fw-semibold">{{ cp.name }}</td>
   <td>{{ cp.get_partner_type_display }}</td>
   <td>{{ cp.inn|default:"—" }}</td>

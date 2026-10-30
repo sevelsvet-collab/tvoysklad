@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% load l10n %}
 {% block title %}Контрагент — Склад{% endblock %}
 {% block page_title %}{% if object %}{{ object.name }}{% else %}Новый контрагент{% endif %}{% endblock %}
 {% block content %}
@@ -91,15 +92,15 @@
       <div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
         <span class="text-muted small me-1">Создать:</span>
         {% if object.partner_type == 'customer' or object.partner_type == 'both' %}
-          <a href="{% url 'invoice_create' %}?partner={{ object.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text me-1"></i>Счёт</a>
-          <a href="{% url 'shipment_create' %}?partner={{ object.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck me-1"></i>Отгрузку</a>
-          <a href="{% url 'customer_return_create' %}?partner={{ object.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-return-left me-1"></i>Возврат покупателя</a>
-          <a href="{% url 'payment_create_in' %}?partner={{ object.pk }}" class="btn btn-sm btn-outline-success"><i class="bi bi-cash-coin me-1"></i>Входящий платёж</a>
+          <a href="{% url 'invoice_create' %}?partner={{ object.pk|unlocalize }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text me-1"></i>Счёт</a>
+          <a href="{% url 'shipment_create' %}?partner={{ object.pk|unlocalize }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck me-1"></i>Отгрузку</a>
+          <a href="{% url 'customer_return_create' %}?partner={{ object.pk|unlocalize }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-return-left me-1"></i>Возврат покупателя</a>
+          <a href="{% url 'payment_create_in' %}?partner={{ object.pk|unlocalize }}" class="btn btn-sm btn-outline-success"><i class="bi bi-cash-coin me-1"></i>Входящий платёж</a>
         {% endif %}
         {% if object.partner_type == 'supplier' or object.partner_type == 'both' %}
-          <a href="{% url 'receipt_create' %}?partner={{ object.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-down me-1"></i>Приёмку</a>
-          <a href="{% url 'supplier_return_create' %}?partner={{ object.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-return-right me-1"></i>Возврат поставщику</a>
-          <a href="{% url 'payment_create_out' %}?partner={{ object.pk }}" class="btn btn-sm btn-outline-success"><i class="bi bi-cash-coin me-1"></i>Исходящий платёж</a>
+          <a href="{% url 'receipt_create' %}?partner={{ object.pk|unlocalize }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-down me-1"></i>Приёмку</a>
+          <a href="{% url 'supplier_return_create' %}?partner={{ object.pk|unlocalize }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-return-right me-1"></i>Возврат поставщику</a>
+          <a href="{% url 'payment_create_out' %}?partner={{ object.pk|unlocalize }}" class="btn btn-sm btn-outline-success"><i class="bi bi-cash-coin me-1"></i>Исходящий платёж</a>
         {% endif %}
       </div>
       <div class="card">
@@ -184,7 +185,7 @@
     <div class="tab-pane fade" id="tab-contracts">
       {% if object %}
       <div class="mb-3">
-        <a href="{% url 'contract_create' %}?partner={{ object.pk }}" class="btn btn-sm btn-outline-primary">
+        <a href="{% url 'contract_create' %}?partner={{ object.pk|unlocalize }}" class="btn btn-sm btn-outline-primary">
           <i class="bi bi-plus-lg me-1"></i>Заключить договор
         </a>
       </div>

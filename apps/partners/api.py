@@ -41,6 +41,10 @@ def counterparty_search(request):
     # Поиск по id — для подстановки имени в предзаполненное поле (?id=<pk>)
     id_ = request.GET.get("id")
     if id_:
+        # Только цифры: «1 540» (число с разделителем разрядов) и прочий мусор —
+        # ошибка запроса, а не 500 от базы
+        if not (id_.isascii() and id_.isdigit()):
+            return JsonResponse({"results": [], "error": "Некорректный id"}, status=400)
         cp = Counterparty.objects.filter(pk=id_).first()
         return JsonResponse({"results": [_serialize(cp)] if cp else []})
     q = request.GET.get("q", "").strip()

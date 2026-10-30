@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% load l10n %}
 {% block title %}Серийные номера — Склад{% endblock %}
 {% block page_title %}Серийные номера{% endblock %}
 {% block content %}
 <form method="get" class="d-flex gap-2 mb-3 flex-wrap align-items-center">
-  {% if product_filter %}<input type="hidden" name="product" value="{{ product_filter.pk }}">{% endif %}
+  {% if product_filter %}<input type="hidden" name="product" value="{{ product_filter.pk|unlocalize }}">{% endif %}
   <input type="search" name="q" class="form-control form-control-sm" style="max-width:320px;"
          placeholder="Серийный номер или товар" value="{{ request.GET.q|default:'' }}" autofocus>
   <select name="status" class="form-select form-select-sm" style="max-width:220px;" onchange="this.form.submit()">

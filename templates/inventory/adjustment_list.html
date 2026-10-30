@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load l10n %}
 {% block title %}{% if is_income %}Оприходования{% else %}Списания{% endif %} — Склад{% endblock %}
 {% block page_title %}{% if is_income %}Оприходования{% else %}Списания{% endif %}{% endblock %}
 {% block page_actions %}
@@ -19,7 +20,7 @@
         <tbody>
           {% for a in adjustments %}
           <tr data-url="{% url 'adjustment_edit' a.pk %}">
-            <td class="list-check-col"><input type="checkbox" name="ids" value="{{ a.pk }}" class="form-check-input list-check" aria-label="Выбрать"></td>
+            <td class="list-check-col"><input type="checkbox" name="ids" value="{{ a.pk|unlocalize }}" class="form-check-input list-check" aria-label="Выбрать"></td>
             <td class="fw-semibold">{{ a.number }}</td><td>{{ a.date|date:"d.m.Y" }} <span class="text-muted small">{{ a.time|time:"H:i" }}</span></td><td>{{ a.warehouse.name }}</td><td>{{ a.reason|default:"—" }}</td><td>{% if a.is_posted %}<span class="badge bg-success">Проведён</span>{% else %}<span class="badge bg-secondary">Черновик</span>{% endif %}</td>
           </tr>
           {% empty %}

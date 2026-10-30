@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% load l10n %}
 {% block title %}Возвраты покупателей — Склад{% endblock %}
 {% block page_title %}Возвраты покупателей{% endblock %}
 {% block page_actions %}
@@ -18,7 +19,7 @@
         <tbody>
           {% for r in returns %}
           <tr data-url="{% url 'customer_return_edit' r.pk %}">
-            <td class="list-check-col"><input type="checkbox" name="ids" value="{{ r.pk }}" class="form-check-input list-check" aria-label="Выбрать"></td>
+            <td class="list-check-col"><input type="checkbox" name="ids" value="{{ r.pk|unlocalize }}" class="form-check-input list-check" aria-label="Выбрать"></td>
             <td class="fw-semibold">{{ r.number }}</td><td>{{ r.date|date:"d.m.Y" }} <span class="text-muted small">{{ r.time|time:"H:i" }}</span></td><td>{{ r.customer.name }}</td><td>{{ r.warehouse.name }}</td><td class="text-end">{{ r.total|floatformat:2|intcomma }}</td><td>{% if r.is_posted %}<span class="badge bg-success">Проведён</span>{% else %}<span class="badge bg-secondary">Черновик</span>{% endif %}</td>
           </tr>
           {% empty %}

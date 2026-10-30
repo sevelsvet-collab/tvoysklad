@@ -73,6 +73,10 @@ class LineDocumentMixin:
         formset = self.get_formset(self.request.POST)
         formset.instance = self.object
         if not formset.is_valid():
+            if self.object.pk is None:
+                # Документа ещё нет: страница остаётся «новой» (кнопки провести,
+                # удалить и печать строят адрес по id — без него была ошибка 500)
+                self.object = None
             return self.render_to_response(self.get_context_data(form=form, formset=formset))
         try:
             with transaction.atomic():

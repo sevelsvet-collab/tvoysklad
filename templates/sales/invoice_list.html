@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% load l10n %}
 {% block title %}Счета покупателям — Склад{% endblock %}
 {% block page_title %}Счета покупателям{% endblock %}
 {% block page_actions %}
@@ -38,7 +39,7 @@
           {% for inv in invoices %}
           <tr class="inv-row" data-url="{% url 'invoice_edit' inv.pk %}">
             <td class="ps-2 list-check-col">
-              <input type="checkbox" name="ids" value="{{ inv.pk }}" class="form-check-input list-check" aria-label="Выбрать">
+              <input type="checkbox" name="ids" value="{{ inv.pk|unlocalize }}" class="form-check-input list-check" aria-label="Выбрать">
             </td>
             <td data-col="number" class="fw-semibold text-primary">{{ inv.number }}</td>
             <td data-col="time" class="text-muted">

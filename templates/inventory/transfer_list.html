@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load l10n %}
 {% block title %}Перемещения — Склад{% endblock %}
 {% block page_title %}Перемещения{% endblock %}
 {% block page_actions %}
@@ -17,7 +18,7 @@
         <tbody>
           {% for t in transfers %}
           <tr data-url="{% url 'transfer_edit' t.pk %}">
-            <td class="list-check-col"><input type="checkbox" name="ids" value="{{ t.pk }}" class="form-check-input list-check" aria-label="Выбрать"></td>
+            <td class="list-check-col"><input type="checkbox" name="ids" value="{{ t.pk|unlocalize }}" class="form-check-input list-check" aria-label="Выбрать"></td>
             <td class="fw-semibold">{{ t.number }}</td><td>{{ t.date|date:"d.m.Y" }} <span class="text-muted small">{{ t.time|time:"H:i" }}</span></td><td>{{ t.warehouse_from.name }}</td><td>{{ t.warehouse_to.name }}</td><td class="text-muted">{{ t.comment|truncatechars:40 }}</td><td>{% if t.is_posted %}<span class="badge bg-success">Проведён</span>{% else %}<span class="badge bg-secondary">Черновик</span>{% endif %}</td>
           </tr>
           {% empty %}

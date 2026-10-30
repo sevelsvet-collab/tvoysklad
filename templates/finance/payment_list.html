@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% load l10n %}
 {% block title %}Платежи — Склад{% endblock %}
 {% block page_title %}Платежи{% endblock %}
 {% block page_actions %}
@@ -19,7 +20,7 @@
         <tbody>
           {% for p in payments %}
           <tr data-url="{% url 'payment_edit' p.pk %}">
-            <td class="list-check-col"><input type="checkbox" name="ids" value="{{ p.pk }}" class="form-check-input list-check" aria-label="Выбрать"></td>
+            <td class="list-check-col"><input type="checkbox" name="ids" value="{{ p.pk|unlocalize }}" class="form-check-input list-check" aria-label="Выбрать"></td>
             <td class="fw-semibold">{{ p.number }}</td><td>{{ p.date|date:"d.m.Y" }} <span class="text-muted small">{{ p.time|time:"H:i" }}</span></td><td>{% if p.kind == "incoming" %}<span class="text-success"><i class="bi bi-arrow-down-circle"></i> Приход</span>{% else %}<span class="text-danger"><i class="bi bi-arrow-up-circle"></i> Расход</span>{% endif %}</td><td>{{ p.counterparty.name }}</td><td>{{ p.account.name }}</td><td class="text-end {% if p.kind == "incoming" %}text-success{% else %}text-danger{% endif %}">{% if p.kind == "incoming" %}+{% else %}−{% endif %}{{ p.amount|floatformat:2|intcomma }}</td><td>{% if p.is_posted %}<span class="badge bg-success">Проведён</span>{% else %}<span class="badge bg-secondary">Черновик</span>{% endif %}</td>
           </tr>
           {% empty %}
