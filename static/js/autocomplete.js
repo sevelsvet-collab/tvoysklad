@@ -25,6 +25,15 @@
     return Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 3 });
   }
 
+  // Элемент меню. Данные с сервера и ввод пользователя — только как текст:
+  // в названии товара или контрагента может быть что угодно.
+  function menuNode(tag, className, text) {
+    const node = document.createElement(tag);
+    node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
   class Autocomplete {
     constructor(root) {
       this.root = root;
@@ -41,6 +50,9 @@
       this.activeIndex = -1;
       this.lastLabel = this.textInput.value;
       this.timer = null;
+      this.searchRequest = 0;  // номер последнего запроса: опоздавшие ответы не учитываются
+      this.searchPending = false;  // поиск ещё идёт: список не соответствует введённому
+      this.enterWaiting = false;   // Enter нажат раньше ответа — выбор после него
 
       // Меню живёт в <body>: иначе его обрезает прокрутка таблицы документа
       this.menu = document.createElement('div');
@@ -117,11 +129,14 @@
       this.textInput.setAttribute('autocomplete', 'off');
       this.textInput.addEventListener('input', () => this.schedule());
       this.textInput.addEventListener('focus', () => {
+        clearTimeout(this.blurTimer);  // вернулись в поле: закрытие после ухода отменяется
         closeOthers(this);
         this.schedule(0);
       });
       // Уход из поля закрывает подсказки (выбор ловится на mousedown — раньше blur)
-      this.textInput.addEventListener('blur', () => setTimeout(() => this.close(true), 150));
+      this.textInput.addEventListener('blur', () => {
+        this.blurTimer = setTimeout(() => this.close(true), 150);
+      });
       this.textInput.addEventListener('keydown', (e) => this.onKeyDown(e));
       document.addEventListener('click', (e) => {
         if (!this.root.contains(e.target) && !this.menu.contains(e.target)) this.close(true);
@@ -154,15 +169,22 @@
 
     schedule(delay = DEBOUNCE_MS) {
       clearTimeout(this.timer);
+      this.searchPending = true;
       this.timer = setTimeout(() => this.load(), delay);
     }
 
     async load() {
+      this.searchRequest += 1;
+      const request = this.searchRequest;
       try {
         const resp = await fetch(`${this.url}?${this.params()}`, {
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
         });
         const data = await resp.json();
+        if (request !== this.searchRequest) return;
+        this.searchPending = false;
+        const enterWaiting = this.enterWaiting;
+        this.enterWaiting = false;
         this.items = data.results || [];
         this.canCreate = Boolean(data.can_create && this.createUrl);
         // Сканер штрихкодов: точный код → сразу выбираем товар
@@ -172,42 +194,53 @@
         }
         this.activeIndex = this.items.length ? 0 : -1;
         this.render();
+        if (enterWaiting) this.acceptActive();
       } catch (e) {
-        this.menu.innerHTML = '<div class="ac-empty text-danger">Ошибка поиска</div>';
+        if (request !== this.searchRequest) return;
+        this.searchPending = false;
+        this.enterWaiting = false;
+        this.showMenuMessage('Ошибка поиска');
         this.menu.classList.remove('d-none');
       }
     }
 
+    showMenuMessage(text) {
+      this.menu.replaceChildren(menuNode('div', 'ac-empty text-danger', text));
+    }
+
     render() {
       const query = this.textInput.value.trim();
-      let html = '';
+      const nodes = [];
 
       this.items.forEach((item, i) => {
-        const active = i === this.activeIndex ? ' active' : '';
-        let right = '';
+        const row = menuNode('div', i === this.activeIndex ? 'ac-item active' : 'ac-item');
+        row.dataset.index = i;
+        const main = menuNode('div', 'ac-main');
+        main.appendChild(menuNode('div', 'ac-label', item.label || item.name));
+        if (item.details) main.appendChild(menuNode('div', 'ac-sub', item.details));
+        row.appendChild(main);
         if (item.stock !== null && item.stock !== undefined) {
           const cls = item.stock > 0 ? 'ac-stock' : 'ac-stock ac-stock-zero';
-          right = `<span class="${cls}">${fmtStock(item.stock)}${item.unit ? ' ' + item.unit : ''}</span>`;
+          row.appendChild(menuNode('span', cls, fmtStock(item.stock) + (item.unit ? ' ' + item.unit : '')));
         }
-        const sub = item.details ? `<div class="ac-sub">${item.details}</div>` : '';
-        html += `<div class="ac-item${active}" data-index="${i}">
-            <div class="ac-main"><div class="ac-label">${item.label || item.name}</div>${sub}</div>${right}
-          </div>`;
+        nodes.push(row);
       });
 
       if (!this.items.length) {
-        html += `<div class="ac-empty">${query ? 'Ничего не найдено' : 'Начните вводить название'}</div>`;
+        nodes.push(menuNode('div', 'ac-empty', query ? 'Ничего не найдено' : 'Начните вводить название'));
       }
       if (this.canCreate && query) {
         const isInn = this.innLabel && /^\d{10}(\d{2})?$/.test(query);
         const label = isInn ? this.innLabel : this.createLabel;
         const icon = isInn ? 'bi-magic' : 'bi-plus-lg';
-        html += `<div class="ac-create" data-create="1">
-            <i class="bi ${icon} me-1"></i>${label}: «${query}»
-          </div>`;
+        const create = menuNode('div', 'ac-create');
+        create.dataset.create = '1';
+        create.appendChild(menuNode('i', `bi ${icon} me-1`));
+        create.appendChild(document.createTextNode(`${label}: «${query}»`));
+        nodes.push(create);
       }
 
-      this.menu.innerHTML = html;
+      this.menu.replaceChildren(...nodes);
       this.menu.classList.remove('d-none');
       this.position();
 
@@ -235,16 +268,25 @@
         this.activeIndex = Math.max(0, Math.min(this.items.length - 1, this.activeIndex + delta));
         this.render();
       } else if (e.key === 'Enter') {
-        if (isOpen) {
+        // Сканер вводит код и сразу жмёт Enter: выбирать надо по ответу на этот код,
+        // а не из списка, оставшегося от прежнего запроса
+        if (this.searchPending) {
           e.preventDefault();
-          if (this.activeIndex >= 0 && this.items[this.activeIndex]) {
-            this.choose(this.items[this.activeIndex]);
-          } else if (this.canCreate && this.textInput.value.trim()) {
-            this.createNew();
-          }
+          this.enterWaiting = true;
+        } else if (isOpen) {
+          e.preventDefault();
+          this.acceptActive();
         }
       } else if (e.key === 'Escape') {
         this.close(true);
+      }
+    }
+
+    acceptActive() {
+      if (this.activeIndex >= 0 && this.items[this.activeIndex]) {
+        this.choose(this.items[this.activeIndex]);
+      } else if (this.canCreate && this.textInput.value.trim()) {
+        this.createNew();
       }
     }
 
@@ -286,16 +328,22 @@
         });
         const data = await resp.json();
         if (!data.ok) {
-          this.menu.innerHTML = `<div class="ac-empty text-danger">${data.error || 'Не удалось создать'}</div>`;
+          this.showMenuMessage(data.error || 'Не удалось создать');
           return;
         }
         this.choose(data.product || data.counterparty);
       } catch (e) {
-        this.menu.innerHTML = '<div class="ac-empty text-danger">Ошибка создания</div>';
+        this.showMenuMessage('Ошибка создания');
       }
     }
 
     close(restore = false) {
+      // Закрытое меню не откроют ни отложенный поиск, ни опоздавший ответ: иначе
+      // кнопка «Создать» прежней строки появлялась, когда пользователь уже в другой
+      clearTimeout(this.timer);
+      this.searchRequest += 1;
+      this.searchPending = false;
+      this.enterWaiting = false;
       this.menu.classList.add('d-none');
       if (restore) {
         // Текст без выбранного значения не должен «висеть» — возвращаем прежний
