@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from apps.core.forms import BootstrapFormMixin
 from apps.core.models import Organization
+from apps.core.uploads import SCAN_EXTENSIONS, SCAN_TYPES_TEXT, validate_scan
 
 from .models import BankAccount, ContactPerson, Contract, ContractTemplate, Counterparty
 
@@ -58,10 +59,14 @@ class ContractForm(BootstrapFormMixin, forms.ModelForm):
             "valid_to": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "subject": forms.Textarea(attrs={"rows": 2}),
             "comment": forms.Textarea(attrs={"rows": 2}),
+            "scan": forms.ClearableFileInput(attrs={"accept": ",".join(SCAN_EXTENSIONS)}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Проверяется только новый файл: договор с прежним сканом можно пересохранять
+        self.fields["scan"].validators.append(validate_scan)
+        self.fields["scan"].help_text = SCAN_TYPES_TEXT
         for name in ("date", "valid_from", "valid_to"):
             self.fields[name].input_formats = ["%Y-%m-%d"]
         self.fields["template"].queryset = ContractTemplate.objects.filter(is_active=True)

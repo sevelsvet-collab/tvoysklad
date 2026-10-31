@@ -90,6 +90,8 @@
         <div class="col-md-6"><label class="form-label">Предмет договора</label>{{ form.subject }}</div>
         <div class="col-md-6">
           <label class="form-label">Скан подписанного</label>{{ form.scan }}
+          {% if form.scan.errors %}<div class="text-danger small">{{ form.scan.errors.0|capfirst }}</div>{% endif %}
+          <div class="form-text">{{ form.scan.help_text }}</div>
           {% if object.scan %}<div class="form-text"><a href="{{ object.scan.url }}" target="_blank">Загруженный файл</a></div>{% endif %}
           <div class="d-flex gap-3 mt-2">
             <div class="form-check">{{ form.is_perpetual }}<label class="form-check-label">Бессрочный</label></div>

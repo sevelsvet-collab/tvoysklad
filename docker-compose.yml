@@ -32,7 +32,6 @@ services:
       DOMAIN: ${DOMAIN}
     volumes:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
-      - media:/app/media:ro
       - caddy_data:/data       # сертификаты Let's Encrypt (сохраняются между перезапусками)
       - caddy_config:/config
     depends_on:
