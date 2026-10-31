@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load l10n %}
 {% block title %}Товар — Склад{% endblock %}
 {% block page_title %}{% if object %}{{ object.name }}{% else %}Новый товар{% endif %}{% endblock %}
 {% block content %}
@@ -68,7 +69,7 @@
 <div class="card mt-4" id="serials">
   <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
     <span>Серийные номера на складах</span>
-    <a href="{% url 'report_serials' %}?product={{ object.pk }}" class="small fw-normal"{% if request.GET.embed %} target="_blank"{% endif %}>Все номера и история</a>
+    <a href="{% url 'report_serials' %}?product={{ object.pk|unlocalize }}" class="small fw-normal"{% if request.GET.embed %} target="_blank"{% endif %}>Все номера и история</a>
   </div>
   <div class="card-body">
     <table class="table table-sm mb-3">
@@ -91,14 +92,14 @@
       </tbody>
     </table>
     {% if serial_stock_missing %}
-    <form method="post" action="{% url 'product_serial_stock' object.pk %}{% if request.GET.embed %}?embed=1{% endif %}" data-no-dirty>
+    <form method="post" action="{% url 'product_serial_stock' object.pk %}{% if request.GET.embed %}?embed=1{% if modal_token %}&modal={{ modal_token }}{% endif %}{% endif %}" data-no-dirty>
       {% csrf_token %}
       <p class="small mb-2">Часть товара лежит на складе без номеров (была до включения учёта). Введите
         или отсканируйте их номера — по одному в строке. Без этого такой товар не получится отгрузить.</p>
       <div class="row g-2 align-items-start">
         <div class="col-md-4">
           <select name="place" class="form-select form-select-sm">
-            {% for r in serial_stock_missing %}<option value="{{ r.warehouse.pk }}:{{ r.organization.pk }}">{{ r.organization }}, {{ r.warehouse }} — без номеров {{ r.without|floatformat:"-3" }}</option>{% endfor %}
+            {% for r in serial_stock_missing %}<option value="{{ r.warehouse.pk|unlocalize }}:{{ r.organization.pk|unlocalize }}">{{ r.organization }}, {{ r.warehouse }} — без номеров {{ r.without|floatformat:"-3" }}</option>{% endfor %}
           </select>
         </div>
         <div class="col-md-5"><textarea name="numbers" rows="3" class="form-control form-control-sm" placeholder="Серийные номера, по одному в строке"></textarea></div>
@@ -109,13 +110,15 @@
   </div>
 </div>
 {% endif %}
-{% if request.GET.embed and request.GET.saved and object %}
+{% if saved_message %}
+{# json_script, а не число в тексте скрипта: id без разделителя разрядов, название экранировано #}
+{{ saved_message|json_script:"entity-saved-data" }}
 <script>
   // Карточка открыта из документа: сообщаем ему, какой товар сохранён —
   // документ подставит товар в строку и закроет окно.
   if (window.parent !== window) {
     window.parent.postMessage(
-      { type: 'entity-saved', model: 'product', id: {{ object.pk }} },
+      JSON.parse(document.getElementById('entity-saved-data').textContent),
       window.location.origin
     );
   }

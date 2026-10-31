@@ -79,10 +79,29 @@
       this.root.dispatchEvent(new CustomEvent('ac:label', { detail: item, bubbles: true }));
     }
 
-    // Выбрать значение по id — например, товар, только что созданный в карточке
+    // Выбрать значение по id — например, товар, только что созданный в карточке.
+    // Возвращает, удалось ли; сбой запроса — исключение.
     async selectById(id) {
       const item = await this.fetchById(id);
-      if (item) this.choose(item);
+      if (!item) return false;
+      this.choose(item);
+      return true;
+    }
+
+    // Сообщение под полем — например, товар создан, но подставить его не вышло
+    showError(text) {
+      let el = this.root.querySelector('.ac-error');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'ac-error text-danger small mt-1';
+        this.root.appendChild(el);
+      }
+      el.textContent = text;
+    }
+
+    clearError() {
+      const el = this.root.querySelector('.ac-error');
+      if (el) el.remove();
     }
 
     // Обновить подпись выбранного значения (переименовали в карточке)
@@ -231,6 +250,7 @@
 
     choose(item) {
       if (!item) return;
+      this.clearError();
       this.valueInput.value = item.id;
       this.textInput.value = item.label || item.name;
       this.lastLabel = this.textInput.value;

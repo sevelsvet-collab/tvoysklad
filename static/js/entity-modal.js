@@ -1,11 +1,31 @@
 // Всплывающее окно с карточкой сущности (контрагент, организация, товар) поверх документа.
 // Карточка открывается во встроенном режиме (?embed=1 — без верхнего меню).
 (function () {
-  let current = null;  // { modal, onClose, onSaved } открытого окна
+  let current = null;  // { token, modal, onClose, onSaved, closing, closeWanted } открытого окна
+  let pending = null;  // окно, запрошенное, пока прежнее ещё закрывается
+  let openings = 0;
 
-  // openEntityModal(url, onClose) или openEntityModal(url, { title, onClose, onSaved })
-  function openEntityModal(url, options) {
-    const opts = typeof options === 'function' ? { onClose: options } : (options || {});
+  // Метка открытия: окно возвращает её в сообщении «сохранено» (apps/core/embed_window.py)
+  function newToken() {
+    openings += 1;
+    return Date.now().toString(36) + '-' + openings;
+  }
+
+  function withToken(url, token) {
+    const parsed = new URL(url, window.location.origin);
+    parsed.searchParams.set('modal', token);
+    return parsed.pathname + parsed.search + parsed.hash;
+  }
+
+  // Bootstrap молча игнорирует hide() во время анимации открытия —
+  // закрытие повторяется, когда окно откроется до конца (shown.bs.modal).
+  function closeCurrent() {
+    if (!current) return;
+    current.closeWanted = true;
+    current.modal.hide();
+  }
+
+  function modalElement() {
     let el = document.getElementById('entityModal');
     if (!el) {
       el = document.createElement('div');
@@ -21,19 +41,43 @@
         '<div class="modal-body p-0"><iframe class="entity-frame" style="width:100%;height:100%;border:0"></iframe></div>' +
         '</div></div>';
       document.body.appendChild(el);
+      el.addEventListener('shown.bs.modal', function () {
+        if (current && current.closeWanted) current.modal.hide();
+      });
+      el.addEventListener('hide.bs.modal', function () {
+        if (current) current.closing = true;
+      });
+      el.addEventListener('hidden.bs.modal', function () {
+        el.querySelector('.entity-frame').src = 'about:blank';  // не мелькать старой карточкой
+        const done = current;
+        current = null;
+        if (done && done.onClose) done.onClose();
+        if (pending) {
+          const next = pending;
+          pending = null;
+          openEntityModal(next.url, next.options);
+        }
+      });
     }
+    return el;
+  }
+
+  // openEntityModal(url, onClose) или openEntityModal(url, { title, onClose, onSaved })
+  function openEntityModal(url, options) {
+    if (current) {
+      // Окно одно: новое откроется, когда прежнее закроется
+      pending = { url: url, options: options };
+      closeCurrent();
+      return;
+    }
+    const opts = typeof options === 'function' ? { onClose: options } : (options || {});
+    const el = modalElement();
+    const token = newToken();
     el.querySelector('.modal-title').textContent = opts.title || 'Карточка';
-    el.querySelector('.entity-frame').src = url;
-    const modal = bootstrap.Modal.getOrCreateInstance(el);
-    current = { modal: modal, onClose: opts.onClose, onSaved: opts.onSaved };
-    const handler = function () {
-      el.removeEventListener('hidden.bs.modal', handler);
-      el.querySelector('.entity-frame').src = 'about:blank';  // не мелькать старой карточкой
-      const done = current;
-      current = null;
-      if (done && done.onClose) done.onClose();
-    };
-    el.addEventListener('hidden.bs.modal', handler);
+    el.querySelector('.entity-frame').src = withToken(url, token);
+    // Клик мимо окна не закрывает его: введённое в карточке не должно пропасть случайно
+    const modal = bootstrap.Modal.getOrCreateInstance(el, { backdrop: 'static' });
+    current = { token: token, modal: modal, onClose: opts.onClose, onSaved: opts.onSaved };
     modal.show();
   }
   window.openEntityModal = openEntityModal;
@@ -42,14 +86,30 @@
   window.addEventListener('message', function (e) {
     if (e.origin !== window.location.origin) return;
     const data = e.data || {};
-    if (data.type !== 'entity-saved' || !current) return;
+    if (data.type !== 'entity-saved' || !current || current.closing) return;
+    // Только актуальное окно: само окно документа и метка этого открытия.
+    // Пользователь уже закрывает окно (current.closing) — это отмена, товар не выбирается.
+    const frame = document.querySelector('#entityModal .entity-frame');
+    if (!frame || e.source !== frame.contentWindow || data.token !== current.token) return;
     const onSaved = current.onSaved;
     current.onSaved = null;
     if (onSaved) {
       onSaved(data);
-      current.modal.hide();
+      closeCurrent();
     }
   });
+
+  // Товар уже создан: при сбое выбора просим найти его, а не создавать снова
+  function selectCreated(ac, data) {
+    if (!ac._ac) return;
+    const failed = function () {
+      ac._ac.showError('Товар «' + (data.name || '') + '» создан, но подставить его в строку не удалось. ' +
+        'Найдите его поиском по названию — создавать заново не нужно.');
+    };
+    ac._ac.selectById(data.id).then(function (selected) {
+      if (!selected) failed();
+    }).catch(failed);
+  }
 
   function buildUrl(base, id) {
     // base вида "/counterparties/0/" — подставляем реальный id вместо 0
@@ -80,10 +140,11 @@
     if (priceSource) params.set('price_source', priceSource);
     const row = ac.closest('tr');
     const price = row && row.querySelector('.line-price');
-    if (price && parseFloat(price.value)) params.set('price', price.value);
+    // В окно предлагаем только цену пользователя, не подставленную от прежнего товара
+    if (price && parseFloat(price.value) && !price.dataset.priceAuto) params.set('price', price.value);
     openEntityModal(base + '?' + params.toString(), {
       title: 'Новый товар',
-      onSaved: function (data) { if (ac._ac) ac._ac.selectById(data.id); },
+      onSaved: function (data) { selectCreated(ac, data); },
     });
   });
 

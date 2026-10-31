@@ -255,7 +255,9 @@ class ProductCardFromDocumentTests(TestCase):
         self.assertRedirects(resp, reverse("product_edit", args=[product.pk]) + "?embed=1&saved=1")
         page = self.client.get(resp.url)
         self.assertContains(page, "entity-saved")
-        self.assertContains(page, f"id: {product.pk}")
+        # ПРАВИЛО ИЗМЕНЕНО: id передаётся через json_script, а не числом в тексте
+        # скрипта — там он при id от 1000 получал разделитель разрядов и ломал скрипт
+        self.assertContains(page, f'"id": {product.pk}')
 
     def test_regular_create_returns_to_list(self):
         resp = self.client.post(reverse("product_create"), self._post_data())

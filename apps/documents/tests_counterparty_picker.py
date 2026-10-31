@@ -500,8 +500,6 @@ SKIP_BLOCKS = re.compile(
     r"|\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}|\{#.*?#\}",
     re.S,
 )
-# Карточка товара — следующий этап (создание товара); здесь не исправлялась.
-DEFERRED = {"catalog/product_form.html"}
 
 
 class TemplateTechnicalIdTests(TestCase):
@@ -510,8 +508,6 @@ class TemplateTechnicalIdTests(TestCase):
         problems = []
         for path in sorted(root.rglob("*.html")):
             name = path.relative_to(root).as_posix()
-            if name in DEFERRED:
-                continue
             text = SKIP_BLOCKS.sub("", path.read_text(encoding="utf-8"))
             for match in TEMPLATE_VAR.finditer(text):
                 var, filters = match.group(1), match.group(2)

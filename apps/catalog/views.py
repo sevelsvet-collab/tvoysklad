@@ -9,6 +9,7 @@ from django.views.generic import CreateView, FormView, ListView, UpdateView
 
 from apps.core import roles
 from apps.core.bulk import back, selected_ids
+from apps.core.embed_window import modal_token
 from apps.core.listing import ChoiceFilter, FilteredListMixin, TextFilter
 from apps.core.models import Organization
 from apps.core.permissions import RoleRequiredMixin, role_required
@@ -96,8 +97,23 @@ class ProductEditBase(RoleRequiredMixin):
 
     def get_success_url(self):
         if self.request.GET.get("embed"):
-            return reverse("product_edit", args=[self.object.pk]) + "?embed=1&saved=1"
+            url = reverse("product_edit", args=[self.object.pk]) + "?embed=1&saved=1"
+            token = modal_token(self.request)
+            return f"{url}&modal={token}" if token else url
         return super().get_success_url()
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["modal_token"] = modal_token(self.request)
+        # Только страница после успешного сохранения: повторная отправка той же
+        # страницы с ошибкой формы не должна сообщать документу «сохранено».
+        params = self.request.GET
+        if self.request.method == "GET" and params.get("embed") and params.get("saved") and self.object:
+            ctx["saved_message"] = {
+                "type": "entity-saved", "model": "product",
+                "id": self.object.pk, "name": self.object.name, "token": ctx["modal_token"],
+            }
+        return ctx
 
 
 def _price_or_none(raw):

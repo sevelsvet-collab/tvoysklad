@@ -235,6 +235,23 @@
 
   // ---------- Строка ----------
 
+  // Цена строки: ручная не меняется при выборе товара (в том числе введённый 0);
+  // подставленная и пустая заменяются ценой товара. Ненулевая цена с сервера
+  // считается указанной пользователем: неизвестно, вводили её или нет.
+  function priceIsUsers(price) {
+    if (price.dataset.priceManual) return price.value.trim() !== '';
+    if (price.dataset.priceAuto) return false;
+    return !!parseFloat(price.value);
+  }
+
+  function applyProductPrice(price, item) {
+    if (!price || item.price === undefined || item.price === null) return;
+    if (priceIsUsers(price)) return;
+    price.value = item.price;
+    price.dataset.priceAuto = '1';
+    delete price.dataset.priceManual;
+  }
+
   function bindRow(tr, root) {
     var price = tr.querySelector('.line-price');
     var qty = tr.querySelector('.line-qty');
@@ -247,16 +264,21 @@
       ac.addEventListener('ac:select', function (e) {
         syncProductView(tr);
         var item = e.detail || {};
-        if (price && item.price && !parseFloat(price.value)) price.value = item.price;
+        applyProductPrice(price, item);
         if (qty && !parseFloat(qty.value)) qty.value = 1;
         // НДС: у неплательщика — «Без НДС», у плательщика — ставка товара
         ac.dataset.productVat = item.vat_rate || '';
         setRowVat(tr, lineVat(root, item.vat_rate));
         renderRowStock(tr, item.stock, item.available, item.unit);
-        recalc(root);
+        // как при вводе цены: скидка в рублях пересчитывается от новой суммы строки
+        if (onBaseChange) onBaseChange(); else recalc(root);
         ensureTrailingRow(root, true);
       });
     }
+    if (price) price.addEventListener('input', function () {
+      price.dataset.priceManual = '1';
+      delete price.dataset.priceAuto;
+    });
     [qty, price].forEach(function (el) {
       if (el) el.addEventListener('input', function () {
         if (onBaseChange) onBaseChange(); else recalc(root);

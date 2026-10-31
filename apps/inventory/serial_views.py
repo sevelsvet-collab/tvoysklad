@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView
 
 from apps.core import roles
+from apps.core.embed_window import modal_token
 from apps.core.pagination import PageSizeMixin
 from apps.core.permissions import RoleRequiredMixin, role_required
 
@@ -94,6 +95,9 @@ def product_serial_stock(request, pk):
     url = reverse("product_edit", args=[pk])
     if request.GET.get("embed"):
         url += "?embed=1"
+        token = modal_token(request)     # окно документа остаётся тем же окном
+        if token:
+            url += f"&modal={token}"
     return redirect(url + "#serials")
 
 
