@@ -327,9 +327,9 @@ class ContractUpdateView(ContractEditBase, UpdateView):
     pass
 
 
-@login_required
+@role_required(*EDIT_ROLES)
 def contract_download(request, pk, fmt="pdf"):
-    """Выгрузка договора: PDF или Word."""
+    """Выгрузка договора: PDF или Word. Права те же, что у страниц договора."""
     contract = get_object_or_404(
         Contract.objects.select_related("organization", "counterparty", "template"), pk=pk,
     )
