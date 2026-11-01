@@ -75,7 +75,7 @@ class LiteralProductTests(AcWorld):
         second = Product.objects.create(name=f"Б {MARKUP}", unit=self.unit)
         self.open("invoice_create")
         field = self.type_in_row("Икс")
-        self.assertEqual(self.menu().locator(".ac-item.active .ac-label").inner_text(), f"А {MARKUP}")
+        self.menu().locator(".ac-item.active .ac-label", has_text=f"А {MARKUP}").wait_for()
         field.press("ArrowDown")
         self.assertEqual(self.menu().locator(".ac-item.active .ac-label").inner_text(), f"Б {MARKUP}")
         self.assertNothingInjected()
@@ -473,3 +473,61 @@ class SearchResponseOrderTests(BrowserWorld):
         self.field().fill("Аааа")
         self.page.locator(".ac-menu:not(.d-none) .ac-label", has_text="Аааа первый").wait_for()
         self.assertEqual(self.row().locator(".line-product").input_value(), "")
+
+    # ----- Стрелки до ответа на введённый текст
+
+    def active_label(self):
+        return self.page.locator(".ac-menu:not(.d-none) .ac-item.active .ac-label").inner_text()
+
+    def arrows_before_answer(self, presses):
+        """Список пустого запроса: Аааа, Яяяя второй, Яяяя нужный. Ответ на «Яяяя» опаздывает."""
+        Product.objects.create(name="Яяяя второй", unit=self.unit, sale_price=4)
+        self.delay_answers(self.TEXT_QUERY)
+        self.open("invoice_create")
+        self.field().click()
+        self.first_item().wait_for()
+        self.field().fill("Яяяя")
+        self.wait_sent()
+        for _ in range(presses):
+            self.field().press("ArrowDown")
+
+    def test_arrow_choice_survives_answer(self):
+        self.arrows_before_answer(2)
+        self.assertEqual(self.active_label(), "Яяяя нужный")
+        self.wait_answered()
+        self.assertEqual(self.active_label(), "Яяяя нужный")
+        self.assertEqual(len(self.page.locator(".ac-menu:not(.d-none) .ac-item").all()), 2)
+
+    def test_enter_after_arrows_takes_highlighted_product(self):
+        self.arrows_before_answer(2)
+        self.field().press("Enter")
+        self.assertEqual(self.chosen_after_answers(), str(self.wanted.pk))
+
+    def test_arrow_choice_missing_from_answer_falls_back_to_first(self):
+        self.arrows_before_answer(0)
+        self.field().press("ArrowDown")
+        self.field().press("ArrowUp")          # выбран «Аааа», в ответе на «Яяяя» его нет
+        self.wait_answered()
+        self.assertEqual(self.active_label(), "Яяяя второй")
+
+    def test_new_input_forgets_arrow_choice(self):
+        """Новый текст — новый выбор, хотя выбранный стрелками товар остался в списке."""
+        self.arrows_before_answer(2)
+        self.field().fill("Яяя")
+        self.page.wait_for_function("window.__answered >= 2")
+        self.page.wait_for_timeout(100)
+        self.assertEqual(self.active_label(), "Яяяя второй")
+
+    def test_closing_menu_forgets_arrow_choice(self):
+        Product.objects.create(name="Яяяя второй", unit=self.unit, sale_price=4)
+        self.open("invoice_create")
+        self.field().click()
+        self.first_item().wait_for()
+        self.field().press("ArrowDown")
+        self.field().press("ArrowDown")
+        self.assertEqual(self.active_label(), "Яяяя нужный")
+        self.field().press("Escape")
+        self.assertEqual(self.page.locator(".ac-menu:not(.d-none)").count(), 0)
+        self.field().press("ArrowDown")     # при закрытом меню открывает его заново
+        self.first_item().wait_for()
+        self.assertEqual(self.active_label(), "Аааа первый")

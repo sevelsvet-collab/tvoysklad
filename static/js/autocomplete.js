@@ -53,6 +53,7 @@
       this.searchRequest = 0;  // номер последнего запроса: опоздавшие ответы не учитываются
       this.searchPending = false;  // поиск ещё идёт: список не соответствует введённому
       this.enterWaiting = false;   // Enter нажат раньше ответа — выбор после него
+      this.navigatedId = null;     // товар, выбранный стрелками: ответ поиска его не сбрасывает
 
       // Меню живёт в <body>: иначе его обрезает прокрутка таблицы документа
       this.menu = document.createElement('div');
@@ -127,7 +128,10 @@
 
     bind() {
       this.textInput.setAttribute('autocomplete', 'off');
-      this.textInput.addEventListener('input', () => this.schedule());
+      this.textInput.addEventListener('input', () => {
+        this.navigatedId = null;
+        this.schedule();
+      });
       this.textInput.addEventListener('focus', () => {
         clearTimeout(this.blurTimer);  // вернулись в поле: закрытие после ухода отменяется
         closeOthers(this);
@@ -192,7 +196,8 @@
           const scanned = this.items.find((it) => String(it.id) === String(data.auto_select));
           if (scanned) { this.choose(scanned); return; }
         }
-        this.activeIndex = this.items.length ? 0 : -1;
+        const kept = this.items.findIndex((it) => it.id === this.navigatedId);
+        this.activeIndex = kept >= 0 ? kept : (this.items.length ? 0 : -1);
         this.render();
         if (enterWaiting) this.acceptActive();
       } catch (e) {
@@ -266,6 +271,8 @@
         if (!isOpen) return this.schedule(0);
         const delta = e.key === 'ArrowDown' ? 1 : -1;
         this.activeIndex = Math.max(0, Math.min(this.items.length - 1, this.activeIndex + delta));
+        const active = this.items[this.activeIndex];
+        this.navigatedId = active ? active.id : null;
         this.render();
       } else if (e.key === 'Enter') {
         // Сканер вводит код и сразу жмёт Enter: выбирать надо по ответу на этот код,
@@ -344,6 +351,7 @@
       this.searchRequest += 1;
       this.searchPending = false;
       this.enterWaiting = false;
+      this.navigatedId = null;
       this.menu.classList.add('d-none');
       if (restore) {
         // Текст без выбранного значения не должен «висеть» — возвращаем прежний
