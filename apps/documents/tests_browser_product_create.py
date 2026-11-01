@@ -5,19 +5,24 @@
 Её основная часть работает в JavaScript, поэтому текста шаблона для проверки мало.
 
 Нужны Playwright, Chromium (python -m playwright install chromium) и доступ
-к CDN Bootstrap. Без них тесты пропускаются — это видно в отчёте запуска как
-skipped, а не как успех: tag browser.
+к CDN Bootstrap. Без них тесты пропускаются с причиной — в отчёте это skipped,
+а не успех: tag browser. Пропуск только в этих трёх случаях: ответ страницы с
+ошибкой, другой сбой запуска браузера или отсутствие Bootstrap при рабочем CDN —
+это падение теста, иначе ошибка приложения выглядела бы как пропуск.
 """
 import os
 import re
+import sys
+import unittest
 from decimal import Decimal
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from django.core.management.color import no_style
 from django.db import connection
-from django.test import tag
+from django.test import SimpleTestCase, tag
 from django.urls import reverse
 
 from apps.catalog.models import Product, Unit
@@ -39,21 +44,33 @@ class BrowserWorld(StaticLiveServerTestCase):
     @classmethod
     def setUpClass(cls):
         try:
+            from playwright.sync_api import Error as PlaywrightError
             from playwright.sync_api import sync_playwright
-        except ImportError:
-            raise cls.skipException("Playwright не установлен")
+        except ImportError as exc:
+            raise unittest.SkipTest(f"Playwright не установлен: {exc}")
         # Playwright держит цикл событий в этом потоке; Django иначе запрещает ORM
         cls._async_unsafe = os.environ.get("DJANGO_ALLOW_ASYNC_UNSAFE")
         os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
-        super().setUpClass()
-        cls.playwright = sync_playwright().start()
+        cls.playwright = None
         try:
+            # Браузер — раньше живого сервера: без браузера сервер не нужен
+            cls.playwright = sync_playwright().start()
             cls.browser = cls.playwright.chromium.launch()
         except Exception as exc:
-            cls.playwright.stop()
-            super().tearDownClass()
+            if cls.playwright is not None:
+                cls.playwright.stop()
             cls._restore_async_flag()
-            raise cls.skipException(f"Chromium недоступен: {exc}")
+            # Только отсутствие браузера — другие сбои запуска видны как ошибка
+            if isinstance(exc, PlaywrightError) and "Executable doesn't exist" in str(exc):
+                raise unittest.SkipTest("Chromium не установлен: " + str(exc).splitlines()[0])
+            raise
+        try:
+            super().setUpClass()
+        except Exception:
+            cls.browser.close()
+            cls.playwright.stop()
+            cls._restore_async_flag()
+            raise
 
     @classmethod
     def _restore_async_flag(cls):
@@ -118,10 +135,19 @@ class BrowserWorld(StaticLiveServerTestCase):
         self.page = self.context.new_page()
         self.page.on("pageerror", lambda exc: self.js_errors.append(f"{exc.name}: {exc.message} {exc.stack} @ {self.page.url}"))
         self.page.on("dialog", self._on_dialog)
-        self.page.goto(self.live_server_url + reverse(url_name, args=args))
+        bootstrap_failed = []
+        self.page.on("requestfailed",
+                     lambda r: bootstrap_failed.append(r.url) if "bootstrap.bundle" in r.url else None)
+        self.page.on("response",
+                     lambda r: bootstrap_failed.append(r.url) if "bootstrap.bundle" in r.url and r.status >= 400 else None)
+        url = self.live_server_url + reverse(url_name, args=args)
+        response = self.page.goto(url)
+        self.assertTrue(response.ok, f"{url}: HTTP {response.status}")     # ошибка страницы — падение, не пропуск
         self.page.wait_for_load_state("load")
         if not self.page.evaluate("Boolean(window.bootstrap)"):
-            self.skipTest("Bootstrap с CDN не загрузился (нет доступа к cdn.jsdelivr.net)")
+            if bootstrap_failed:
+                raise unittest.SkipTest(f"Bootstrap с CDN не загрузился: {bootstrap_failed[0]}")
+            self.fail(f"{url}: на странице нет Bootstrap, хотя CDN отвечает")
 
     # ----- строка документа
 
@@ -179,6 +205,93 @@ class BrowserWorld(StaticLiveServerTestCase):
     def assertNoPageProblems(self):
         self.assertEqual(self.js_errors, [])
         self.assertEqual(self.dialogs, [])
+
+
+class BrowserAvailabilityTests(SimpleTestCase):
+    """Когда браузерные тесты пропускаются, а когда падают. Сам браузер здесь не нужен."""
+
+    def setUp(self):
+        try:
+            from playwright.sync_api import Error
+        except ImportError as exc:
+            self.skipTest(f"Playwright не установлен: {exc}")
+        self.playwright_error = Error
+        flag = os.environ.pop("DJANGO_ALLOW_ASYNC_UNSAFE", None)
+        if flag is not None:
+            self.addCleanup(os.environ.__setitem__, "DJANGO_ALLOW_ASYNC_UNSAFE", flag)
+
+    def start_with_launch_error(self, error):
+        driver = mock.Mock()
+        driver.chromium.launch.side_effect = error
+        starter = mock.Mock()
+        starter.start.return_value = driver
+        with mock.patch("playwright.sync_api.sync_playwright", return_value=starter):
+            try:
+                BrowserWorld.setUpClass()
+            finally:
+                driver.stop.assert_called_once()
+                self.assertNotIn("DJANGO_ALLOW_ASYNC_UNSAFE", os.environ)
+
+    def test_missing_package_is_skipped_with_reason(self):
+        with mock.patch.dict(sys.modules, {"playwright.sync_api": None}):
+            with self.assertRaises(unittest.SkipTest) as caught:
+                BrowserWorld.setUpClass()
+        self.assertIn("Playwright не установлен", str(caught.exception))
+        self.assertNotIn("DJANGO_ALLOW_ASYNC_UNSAFE", os.environ)
+
+    def test_missing_chromium_is_skipped_with_reason(self):
+        error = self.playwright_error("BrowserType.launch: Executable doesn't exist at /x/chrome\nподробности")
+        with self.assertRaises(unittest.SkipTest) as caught:
+            self.start_with_launch_error(error)
+        self.assertIn("Chromium не установлен", str(caught.exception))
+        self.assertNotIn("подробности", str(caught.exception))
+
+    def assertLaunchErrorIsNotSkip(self, error):
+        # SkipTest внутри assertRaises сделал бы пропущенным сам этот тест
+        try:
+            with self.assertRaises(type(error)):
+                self.start_with_launch_error(error)
+        except unittest.SkipTest as skip:
+            self.fail(f"пропуск вместо ошибки: {skip}")
+
+    def test_other_browser_failure_is_an_error(self):
+        self.assertLaunchErrorIsNotSkip(
+            self.playwright_error("BrowserType.launch: Target page, context or browser has been closed"))
+
+    def test_unexpected_exception_is_an_error(self):
+        self.assertLaunchErrorIsNotSkip(ZeroDivisionError("сбой"))
+
+
+class OpenPageOutcomeTests(BrowserWorld):
+    """Пропуск — только когда не загрузился Bootstrap с CDN; ошибка страницы — падение."""
+
+    def test_page_error_fails_instead_of_skipping(self):
+        self.context.route(re.compile(r"/sales/invoices/new/"),
+                           lambda route: route.fulfill(status=500, body="<h1>Server Error</h1>"))
+        with self.assertRaisesMessage(AssertionError, "HTTP 500"):
+            self.open("invoice_create")
+
+    def test_real_403_fails_instead_of_skipping(self):
+        self.user.groups.clear()
+        with self.assertRaisesMessage(AssertionError, "HTTP 403"):
+            self.open("invoice_create")
+
+    def test_unreachable_cdn_is_skipped(self):
+        self.context.route(re.compile(r"bootstrap\.bundle"), lambda route: route.abort())
+        with self.assertRaises(unittest.SkipTest) as caught:
+            self.open("invoice_create")
+        self.assertIn("Bootstrap с CDN не загрузился", str(caught.exception))
+
+    def test_cdn_error_status_is_skipped(self):
+        self.context.route(re.compile(r"bootstrap\.bundle"), lambda route: route.fulfill(status=503, body=""))
+        with self.assertRaises(unittest.SkipTest):
+            self.open("invoice_create")
+
+    def test_missing_bootstrap_with_working_cdn_fails(self):
+        self.context.route(re.compile(r"bootstrap\.bundle"),
+                           lambda route: route.fulfill(status=200, content_type="text/javascript", body=""))
+        with self.assertRaisesMessage(AssertionError, "на странице нет Bootstrap"):
+            self.open("invoice_create")
 
 
 class CreateAndSelectTests(BrowserWorld):
