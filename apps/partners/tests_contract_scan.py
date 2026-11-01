@@ -12,6 +12,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 from django.conf import settings
 from django.contrib.admin.sites import AdminSite
@@ -22,6 +23,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.db import connections
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
@@ -209,8 +211,7 @@ class PdfSignatureLimitTests(ScanWorld, TestCase):
         response = self.client.get("/media/a.pdf")
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertEqual(response["X-Content-Type-Options"], "nosniff")
-        b"".join(response.streaming_content)
-        response.close()
+        b"".join(response.streaming_content)    # файл закрывает клиент, см. MediaRequests.get
 
     def test_signature_after_first_kilobyte_is_rejected(self):
         self.assertIsNotNone(scan_problem("a.pdf", io.BytesIO(b" " * 1024 + b"%PDF-")))
@@ -249,10 +250,15 @@ class MediaRequests:
         path.write_bytes(content)
 
     def get(self, name, **headers):
+        """Ответ закрывает сам тестовый клиент: обычный — сразу, потоковый — когда
+        содержимое прочитано; файл при этом освобождается. Он же на это время
+        отключает close_old_connections. Повторный response.close() послал бы
+        request_finished с подключённым обработчиком, и на PostgreSQL соединение
+        закрылось бы внутри транзакции TestCase («the connection is closed»)."""
         response = self.client.get(f"/media/{name}", headers=headers)
         if response.streaming:
             b"".join(response.streaming_content)
-        response.close()
+            self.assertTrue(response.closed)
         return response
 
 
@@ -423,6 +429,83 @@ class ScanRolesTests(ScanWorld, MediaRequests, TestCase):
             with self.subTest(name):
                 self.put(name)
                 self.assertEqual(self.get(name).status_code, 200)
+
+
+class MediaResponseLifecycleTests(ScanWorld, MediaRequests, TestCase):
+    """После выдачи файла соединение с базой живо, файл освобождён.
+
+    SQLite в памяти игнорирует закрытие соединения, поэтому сами запросы к базе
+    ошибку там не покажут. Вызов закрытия проверяется напрямую — на любой базе."""
+
+    def setUp(self):
+        self.use_temp_media()
+        self.user = user_with_role("manager", roles.ROLE_MANAGER)
+        self.client.force_login(self.user)
+
+    def assertConnectionKept(self, name, **headers):
+        connection = connections["default"]
+        with mock.patch.object(connection, "close", wraps=connection.close) as closing:
+            response = self.get(name, **headers)
+        closing.assert_not_called()
+        self.assertTrue(connection.in_atomic_block)
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+        return response
+
+    def test_connection_survives_every_kind_of_answer(self):
+        self.put("a.pdf", PDF)
+        self.put("a.html", PAGE)
+        self.put("contracts/scan.pdf", PDF)
+        shown = self.assertConnectionKept("a.pdf")
+        self.assertEqual(shown.status_code, 200)
+        self.assertEqual(self.assertConnectionKept("a.html").status_code, 200)
+        self.assertEqual(
+            self.assertConnectionKept("a.pdf", **{"If-Modified-Since": shown["Last-Modified"]}).status_code, 304)
+        self.assertEqual(self.assertConnectionKept("nothing.pdf").status_code, 404)
+        self.assertEqual(self.assertConnectionKept("a%00.pdf").status_code, 404)
+        self.assertEqual(self.assertConnectionKept("../manage.py").status_code, 400)
+        self.client.force_login(user_with_role("keeper", roles.ROLE_STOREKEEPER))
+        self.assertEqual(self.assertConnectionKept("contracts/scan.pdf").status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.assertConnectionKept("a.pdf").status_code, 302)
+
+    def test_repeated_requests_after_download(self):
+        self.put("a.pdf", PDF)
+        for _ in range(3):
+            self.assertEqual(self.get("a.pdf").status_code, 200)
+        self.assertEqual(self.client.get(reverse("contract_list")).status_code, 200)
+
+    def test_database_can_be_written_after_download(self):
+        self.put("a.html", PAGE)
+        self.get("a.html")
+        party = Counterparty.objects.create(name="После скачивания", partner_type=Counterparty.TYPE_BOTH)
+        self.assertTrue(Counterparty.objects.filter(pk=party.pk).exists())
+
+    def test_login_after_anonymous_request(self):
+        """Так падал первый тест на сервере: анонимный запрос, затем вход."""
+        self.put("a.pdf", PDF)
+        self.client.logout()
+        self.assertEqual(self.get("a.pdf").status_code, 302)
+        self.client.force_login(self.user)
+        self.assertEqual(self.get("a.pdf").status_code, 200)
+
+    def test_file_is_released_after_download(self):
+        real_open = Path.open
+        opened = []
+
+        def recording_open(path, *args, **kwargs):
+            stream = real_open(path, *args, **kwargs)
+            opened.append(stream)
+            return stream
+
+        for name in ("a.pdf", "a.html"):
+            with self.subTest(name):
+                self.put(name, PDF)
+                opened.clear()
+                with mock.patch.object(Path, "open", recording_open):
+                    self.assertEqual(self.get(name).status_code, 200)
+                self.assertEqual(len(opened), 1)
+                self.assertTrue(opened[0].closed)
+                (self.media / name).unlink()    # открытый файл Windows удалить не даст
 
 
 class ProxyConfigTests(TestCase):
