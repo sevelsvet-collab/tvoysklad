@@ -33,6 +33,7 @@ def _serialize(cp):
         "label": cp.name,
         "details": " · ".join(details),
         "inn": cp.inn,
+        "partner_type": cp.partner_type,    # подходит ли документу (платёж: по назначению)
     }
 
 

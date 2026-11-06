@@ -44,6 +44,7 @@
       this.createLabel = root.dataset.acCreateLabel || 'Создать';
       this.innLabel = root.dataset.acInnLabel || '';  // подпись при вводе ИНН (контрагенты)
       this.staticParams = JSON.parse(root.dataset.acParams || '{}');
+      this.createParams = {};  // поверх staticParams — только при создании (setParams)
       this.dynParams = JSON.parse(root.dataset.acDyn || '{}');
       this.items = [];
       this.canCreate = false;
@@ -99,6 +100,20 @@
       if (!item) return false;
       this.choose(item);
       return true;
+    }
+
+    // Сменились условия поиска (например, назначение платежа): ответы на прежние
+    // запросы не учитываются; если поле в работе — список ищется заново
+    setParams(params, createParams = {}) {
+      this.staticParams = params;
+      this.createParams = createParams;
+      clearTimeout(this.timer);
+      this.searchRequest += 1;
+      this.searchPending = false;
+      this.enterWaiting = false;
+      this.navigatedId = null;
+      const open = !this.menu.classList.contains('d-none');
+      if (open || document.activeElement === this.textInput) this.schedule(0);
     }
 
     // Сообщение под полем — например, товар создан, но подставить его не вышло
@@ -316,7 +331,7 @@
         this.root.dispatchEvent(new CustomEvent('ac:create', { detail: { name }, bubbles: true }));
         return;
       }
-      const body = new URLSearchParams({ name, ...this.staticParams });
+      const body = new URLSearchParams({ name, ...this.staticParams, ...this.createParams });
       Object.entries(this.dynParams).forEach(([key, selector]) => {
         const el = document.querySelector(selector);
         if (el && el.value) body.set(key, el.value);

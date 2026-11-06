@@ -2,6 +2,8 @@
 Поле выбора с живым поиском (контрагент и т.п.).
 Ожидает: field, selected (объект или None), search_url, create_url (опц.), create_label,
 placeholder, ac_params (JSON-строка статических параметров).
+value_from_selected — скрытое значение берётся из selected, а не из поля: название и
+id тогда всегда одного контрагента (неизвестный id — пустое поле).
 {% endcomment %}
 {% load l10n %}
 <div class="ac"
@@ -9,7 +11,7 @@ placeholder, ac_params (JSON-строка статических парамет�
      {% if create_url %}data-ac-create-url="{{ create_url }}" data-ac-create-label="{{ create_label|default:'Создать' }}" data-ac-inn-label="Создать по ИНН (реквизиты из DaData)"{% endif %}
      data-ac-params='{{ ac_params|default:"{}" }}'>
   <input type="hidden" name="{{ field.html_name }}" id="{{ field.auto_id }}"
-         value="{{ field.value|default_if_none:''|unlocalize }}" class="ac-value">
+         value="{% if value_from_selected %}{{ selected.pk|default_if_none:''|unlocalize }}{% else %}{{ field.value|default_if_none:''|unlocalize }}{% endif %}" class="ac-value">
   <div class="input-group input-group-sm">
     <input type="text" class="form-control ac-input"
            placeholder="{{ placeholder|default:'Начните вводить название или ИНН' }}"

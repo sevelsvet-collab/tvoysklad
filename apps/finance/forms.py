@@ -1,10 +1,15 @@
+import json
+from functools import cached_property
+
 from django import forms
+from django.core.exceptions import ValidationError
 
 from apps.core.forms import DocumentHeaderMixin, BootstrapFormMixin
 from apps.core.models import Organization
 from apps.partners.models import Counterparty
 from apps.sales.models import Invoice
 
+from . import services
 from .models import Account, AccountCorrection, Payment, SettlementCorrection
 
 
@@ -51,16 +56,15 @@ class PaymentForm(DocumentHeaderMixin, BootstrapFormMixin, forms.ModelForm):
             if account:
                 self.fields["account"].initial = account
 
-        # Входящий — от покупателей и привязка к счёту; исходящий — поставщикам, без счёта
+        # Сторону контрагента задаёт назначение, а не направление денег: возврат
+        # покупателю — исходящий платёж покупателю, возврат от поставщика —
+        # входящий от поставщика. Здесь — все действующие, тип проверяет clean();
+        # живой поиск сужен тем же правилом (counterparty_rules).
+        self.fields["counterparty"].queryset = Counterparty.objects.filter(is_active=True)
+        # Привязка к счёту покупателю — только у входящего
         if self.kind == Payment.KIND_IN:
-            self.fields["counterparty"].queryset = Counterparty.objects.filter(
-                partner_type__in=[Counterparty.TYPE_CUSTOMER, Counterparty.TYPE_BOTH], is_active=True,
-            )
             self.fields["invoice"].queryset = Invoice.objects.filter(status=Invoice.STATUS_ISSUED)
         else:
-            self.fields["counterparty"].queryset = Counterparty.objects.filter(
-                partner_type__in=[Counterparty.TYPE_SUPPLIER, Counterparty.TYPE_BOTH], is_active=True,
-            )
             del self.fields["invoice"]
 
         # Назначение для взаиморасчётов: только подходящие к направлению денег;
@@ -75,6 +79,85 @@ class PaymentForm(DocumentHeaderMixin, BootstrapFormMixin, forms.ModelForm):
         field = self.fields["settlement_purpose"]
         field.choices = [("", self.AUTO_PURPOSE_LABEL[self.kind])] + [(v, labels.get(v, v)) for v in allowed]
         field.required = False
+
+    # ----- контрагент: тип по назначению
+
+    def _rule(self, purpose, has_invoice):
+        """Правило выбора контрагента при этом назначении: тип для поиска
+        ("" — любой), тип нового контрагента и текст отказа ({name}, {type} —
+        название и тип неподходящего)."""
+        values = {"kind": self.kind, "settlement_purpose": purpose,
+                  "invoice_id": has_invoice or None}     # какой счёт — правилу не важно
+        partner_type = services.counterparty_type(values)
+        effective = purpose or services.auto_purpose(values)
+        label = dict(Payment.PURPOSE_CHOICES).get(effective, effective)
+        if self.kind == Payment.KIND_IN:
+            default = Counterparty.TYPE_CUSTOMER
+        else:
+            default = Counterparty.TYPE_SUPPLIER
+        needed = {Counterparty.TYPE_CUSTOMER: "покупателя", Counterparty.TYPE_SUPPLIER: "поставщика"}
+        message = ""
+        if partner_type:
+            message = (
+                f"«{{name}}» — {{type}}. «{label}» оформляется на {needed[partner_type]} или на "
+                f"контрагента с типом «Покупатель и поставщик». Выберите другого контрагента или другое "
+                f"назначение; тип контрагента меняется в его карточке."
+            )
+        return {
+            "type": partner_type,
+            "create": partner_type or default,     # новый — как раньше по направлению
+            "message": message,
+        }
+
+    def _bound_rule(self):
+        purpose = self["settlement_purpose"].value() or ""
+        if purpose not in dict(self.fields["settlement_purpose"].choices):
+            purpose = ""        # не из списка — на странице выбрано «не указано»
+        has_invoice = "invoice" in self.fields and bool(self["invoice"].value())
+        return self._rule(purpose, has_invoice)
+
+    @property
+    def counterparty_rules(self):
+        """Правила для страницы (payment-counterparty.js): при каждом назначении,
+        со счётом-основанием и без. Из той же services.counterparty_type, что
+        проверяет clean()."""
+        states = {"none": False, "invoice": True} if "invoice" in self.fields else {"none": False}
+        return {
+            "purposes": {
+                value: {state: self._rule(value, has_invoice) for state, has_invoice in states.items()}
+                for value, _ in self.fields["settlement_purpose"].choices
+            },
+            "type_labels": {value: text.lower() for value, text in Counterparty.TYPE_CHOICES},
+        }
+
+    @property
+    def counterparty_search_params(self):
+        """Параметры живого поиска для того, что сейчас выбрано в форме."""
+        return json.dumps({"type": self._bound_rule()["type"]})
+
+    @cached_property
+    def selected_counterparty(self):
+        """Контрагент, чей id сейчас в поле. При повторном показе формы — присланный,
+        а не прежний из документа: иначе название рядом с полем и скрытое значение
+        расходятся. Неизвестный id — None: поле пустое, а не со скрытым значением."""
+        value = self["counterparty"].value()
+        if value in (None, ""):
+            return None
+        try:
+            return Counterparty.objects.filter(pk=value).first()
+        except (TypeError, ValueError, ValidationError):
+            return None
+
+    def clean(self):
+        cleaned = super().clean()
+        counterparty = cleaned.get("counterparty")
+        if counterparty is None or {"settlement_purpose", "invoice"} & set(self.errors):
+            return cleaned
+        rule = self._rule(cleaned.get("settlement_purpose") or "", bool(cleaned.get("invoice")))
+        if rule["type"] and counterparty.partner_type not in (rule["type"], Counterparty.TYPE_BOTH):
+            text = rule["message"].format(name=counterparty, type=counterparty.get_partner_type_display().lower())
+            self.add_error("counterparty", ValidationError(text, code="partner_type"))
+        return cleaned
 
     def _post_clean(self):
         # вид платежа задаётся адресом страницы, а не полем формы; проверке

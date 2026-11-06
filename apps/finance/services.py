@@ -219,6 +219,23 @@ def auto_purpose(values):
     return payment_model.PURPOSE_UNALLOCATED
 
 
+def counterparty_type(values):
+    """Какой контрагент подходит платежу. Решает назначение для взаиморасчётов,
+    а не только направление денег: оплата от покупателя и возврат покупателю —
+    «customer», оплата поставщику и возврат от поставщика — «supplier» (оба —
+    вместе с типом «Покупатель и поставщик»), «не распределено» — "" (любой).
+    «Не указано» — как его определит auto_purpose. Одно правило и для проверки
+    формы, и для живого поиска на странице платежа."""
+    payment_model = apps.get_model("finance", "Payment")
+    counterparty_model = apps.get_model("partners", "Counterparty")
+    purpose = values["settlement_purpose"] or auto_purpose(values)
+    if purpose in (payment_model.PURPOSE_CUSTOMER_PAYMENT, payment_model.PURPOSE_CUSTOMER_REFUND):
+        return counterparty_model.TYPE_CUSTOMER
+    if purpose in (payment_model.PURPOSE_SUPPLIER_PAYMENT, payment_model.PURPOSE_SUPPLIER_REFUND):
+        return counterparty_model.TYPE_SUPPLIER
+    return ""
+
+
 def purpose_errors(values):
     """Назначение для взаиморасчётов против направления денег и
     счёта-основания: {"settlement_purpose": текст}. Пустое («не указано»)

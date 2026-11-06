@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% load humanize %}
 {% block title %}Платёж — Склад{% endblock %}
 {% block page_title %}{% if object %}{% include "documents/_doc_heading.html" with title=object.get_kind_display %}{% elif is_incoming %}{% include "documents/_doc_heading.html" with title="Входящий платёж" %}{% else %}{% include "documents/_doc_heading.html" with title="Исходящий платёж" %}{% endif %}{% endblock %}
@@ -28,11 +29,9 @@
         <div class="col-md-6"><label class="form-label">{% if is_incoming %}Счёт зачисления{% else %}Счёт списания{% endif %}</label>{{ form.account }}
           {% if form.account.errors %}<div class="text-danger small">{{ form.account.errors.0 }}</div>{% endif %}</div>
         <div class="col-md-6"><label class="form-label">{% if is_incoming %}Плательщик{% else %}Получатель{% endif %}</label>
-          {% if is_incoming %}
-            {% include "documents/_ac_field.html" with field=form.counterparty selected=form.instance.counterparty search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" ac_params='{"type": "customer"}' %}
-          {% else %}
-            {% include "documents/_ac_field.html" with field=form.counterparty selected=form.instance.counterparty search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" ac_params='{"type": "supplier"}' %}
-          {% endif %}
+          {# Тип контрагента — по назначению для взаиморасчётов; при его смене — payment-counterparty.js #}
+          {% include "documents/_ac_field.html" with field=form.counterparty selected=form.selected_counterparty value_from_selected=True search_url=cp_search_url create_url=cp_create_url create_label="Создать контрагента" ac_params=form.counterparty_search_params %}
+          {{ form.counterparty_rules|json_script:"payment-counterparty-rules" }}
         </div>
         {% if form.invoice %}
         <div class="col-md-6"><label class="form-label">Счёт-основание</label>{{ form.invoice }}
@@ -71,3 +70,4 @@
   {% endwith %}{% endif %}
 </form>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/payment-counterparty.js' %}{% if asset_version %}?v={{ asset_version }}{% endif %}" defer></script>{% endblock %}
