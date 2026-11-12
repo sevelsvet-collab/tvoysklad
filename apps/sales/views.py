@@ -32,6 +32,8 @@ SHIP_ROLES = [roles.ROLE_ADMIN, roles.ROLE_MANAGER, roles.ROLE_STOREKEEPER]
 # ---------- Счета покупателям ----------
 
 class InvoiceListView(FilteredListMixin, RoleRequiredMixin, ListView):
+    # список — тем же ролям, что открывают карточку (apps/core/tests_list_print_roles.py)
+    allowed_roles = SALES_ROLES
     model = Invoice
     template_name = "sales/invoice_list.html"
     context_object_name = "invoices"
@@ -148,6 +150,8 @@ def invoice_to_shipment(request, pk):
 # ---------- Отгрузки ----------
 
 class ShipmentListView(FilteredListMixin, RoleRequiredMixin, ListView):
+    # список — тем же ролям, что открывают карточку (apps/core/tests_list_print_roles.py)
+    allowed_roles = SHIP_ROLES
     model = Shipment
     template_name = "sales/shipment_list.html"
     context_object_name = "shipments"
@@ -230,6 +234,8 @@ def shipment_delete(request, pk):
 # ---------- Возвраты покупателей ----------
 
 class CustomerReturnListView(FilteredListMixin, RoleRequiredMixin, ListView):
+    # список — тем же ролям, что открывают карточку (apps/core/tests_list_print_roles.py)
+    allowed_roles = SHIP_ROLES
     model = CustomerReturn
     template_name = "sales/customer_return_list.html"
     context_object_name = "returns"

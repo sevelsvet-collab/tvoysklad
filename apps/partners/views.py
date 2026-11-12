@@ -49,6 +49,8 @@ ARCHIVE_ACTIONS = [
 
 
 class CounterpartyListView(FilteredListMixin, RoleRequiredMixin, ListView):
+    # список — тем же ролям, что открывают карточку (apps/core/tests_list_print_roles.py)
+    allowed_roles = EDIT_ROLES
     model = Counterparty
     template_name = "partners/counterparty_list.html"
     context_object_name = "counterparties"

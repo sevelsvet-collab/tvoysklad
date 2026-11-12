@@ -1,7 +1,8 @@
 import time
+from functools import lru_cache
 
 from django.conf import settings
-from django.urls import reverse
+from django.urls import NoReverseMatch, resolve, reverse
 
 from . import roles
 
@@ -26,6 +27,18 @@ def site_owner(request):
     return {"site_owner": SimpleLazyObject(Organization.get_default)}
 
 
+@lru_cache(maxsize=None)
+def page_roles(url_name):
+    """allowed_roles представления страницы (пусто — любой вошедший; у функций роли
+    не читаются, такие пункты меню показываются как раньше)."""
+    try:
+        view = resolve(reverse(url_name)).func
+    except NoReverseMatch:
+        return ()
+    view_class = getattr(view, "view_class", None)
+    return tuple(getattr(view_class, "allowed_roles", ()) or ())
+
+
 def navigation(request):
     """Верхнее меню в стиле МойСклад: разделы + подменю активного раздела.
 
@@ -35,10 +48,21 @@ def navigation(request):
         return {}
 
     url_name = request.resolver_match.url_name if request.resolver_match else ""
+    user = request.user
+    user_roles = set(user.groups.values_list("name", flat=True))
+
+    def opens(sub_url_name):
+        """Пункт ведёт на страницу, которую пользователь может открыть: те же роли
+        (allowed_roles), что проверяет её представление. Иначе пункт не показывается —
+        меню не ведёт на «Недостаточно прав»."""
+        allowed = page_roles(sub_url_name)
+        return user.is_superuser or not allowed or bool(user_roles & set(allowed))
 
     def section(code, title, icon, submenu, admin_only=False):
         items = []
         for sub_title, sub_url_name, active_prefixes in submenu:
+            if sub_url_name and not opens(sub_url_name):
+                continue
             items.append({
                 "title": sub_title,
                 "url": reverse(sub_url_name) if sub_url_name else None,
@@ -101,6 +125,7 @@ def navigation(request):
 
     if not request.user.has_role(roles.ROLE_ADMIN):
         nav = [s for s in nav if not s["admin_only"]]
+    nav = [s for s in nav if s["submenu"]]          # раздел без доступных пунктов не показываем
 
     active_section = next((s for s in nav if s["active"]), None)
     return {"nav_sections": nav, "nav_active": active_section}
