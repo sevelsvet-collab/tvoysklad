@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% block title %}{% if creating %}Новая задача{% else %}Задача № {{ task.number }}{% endif %} — Склад{% endblock %}
+{% block page_title %}{% if creating %}Новая задача{% else %}Изменить задачу № {{ task.number }}{% endif %}{% endblock %}
+{% block content %}
+<form method="post" class="task-form" style="max-width:760px;" novalidate>
+  {% csrf_token %}
+  {% if creating %}<input type="hidden" name="submit_token" value="{{ submit_token }}">{% endif %}
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger" role="alert">
+    {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+    {% if not creating %}<a href="{% url 'task_edit' task.pk %}" class="alert-link">Открыть актуальную версию</a>{% endif %}
+  </div>
+  {% endif %}
+  {% if link %}
+  <div class="alert alert-light border py-2 small">
+    <i class="bi bi-link-45deg me-1"></i>{{ link.label }}: <a href="{{ link_url }}" target="_blank">{{ link_object }}</a>
+    {% if creating %}<div class="text-muted mt-1">Связь задаётся при создании и потом не меняется. Если исполнителю этот документ недоступен,
+      <a href="{% url 'task_create' %}">поставьте задачу без связи</a>.</div>{% endif %}
+  </div>
+  {% endif %}
+  {% if creating %}{{ form.link_type }}{{ form.link_pk }}{% else %}{{ form.version }}{% endif %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label" for="{{ form.title.id_for_label }}">Заголовок</label>
+        {{ form.title }}
+        {% if form.title.errors %}<div class="text-danger small">{{ form.title.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="{{ form.description.id_for_label }}">Описание</label>
+        {{ form.description }}
+        {% if form.description.errors %}<div class="text-danger small">{{ form.description.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="row g-3">
+        {% if creating %}
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.assignee.id_for_label }}">Исполнитель</label>
+          {% if can_delegate %}{{ form.assignee }}{% else %}
+            <input type="hidden" name="assignee" value="{{ form.assignee.value|default_if_none:''|unlocalize }}">
+            <div class="form-control-plaintext">Вы — поручать другим могут администратор и менеджер</div>
+          {% endif %}
+          {% if form.assignee.errors %}<div class="text-danger small">{{ form.assignee.errors.0 }}</div>{% endif %}
+        </div>
+        {% endif %}
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.due_at.id_for_label }}">Срок</label>
+          {{ form.due_at }}
+          <div class="form-text">Дата и время — {{ tz_label }}. Можно не указывать.</div>
+          {% if form.due_at.errors %}<div class="text-danger small">{{ form.due_at.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.priority.id_for_label }}">Приоритет</label>
+          {{ form.priority }}
+        </div>
+        <div class="col-md-6 d-flex align-items-end">
+          <div class="form-check">
+            {{ form.requires_review }}
+            <label class="form-check-label" for="{{ form.requires_review.id_for_label }}">Требуется проверка результата</label>
+            <div class="form-text">Исполнитель сдаёт результат, постановщик принимает или возвращает. Для задачи себе не нужна.</div>
+            {% if form.requires_review.errors %}<div class="text-danger small">{{ form.requires_review.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header bg-white py-2 small fw-semibold">Чек-лист</div>
+    <div class="card-body">
+      {% if creating %}
+        {{ form.checklist }}
+        <div class="form-text">{{ form.checklist.help_text }}</div>
+        {% if form.checklist.errors %}<div class="text-danger small">{{ form.checklist.errors.0 }}</div>{% endif %}
+      {% else %}
+        {% for item, text_field, remove_field in form.item_rows %}
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="text-muted small" style="width:1.5rem">{% if item.is_done %}<i class="bi bi-check-lg text-success" title="Отмечен"></i>{% endif %}</span>
+          {{ text_field }}
+          <div class="form-check text-nowrap mb-0">{{ remove_field }}<label class="form-check-label small" for="{{ remove_field.id_for_label }}">удалить</label></div>
+        </div>
+        {% endfor %}
+        <label class="form-label small mt-1" for="{{ form.new_items.id_for_label }}">Добавить пункты</label>
+        {{ form.new_items }}
+        <div class="form-text">{{ form.new_items.help_text }}. Чек-лист меняется до сдачи результата.</div>
+        {% if form.new_items.errors %}<div class="text-danger small">{{ form.new_items.errors.0 }}</div>{% endif %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">{% if creating %}Поставить задачу{% else %}Сохранить{% endif %}</button>
+    <a href="{% if creating %}{% if link %}{{ link_url }}{% else %}{% url 'task_mine' %}{% endif %}{% else %}{% url 'task_detail' task.pk %}{% endif %}" class="btn btn-outline-secondary">Отмена</a>
+  </div>
+</form>
+{% endblock %}

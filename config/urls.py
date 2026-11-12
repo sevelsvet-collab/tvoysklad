@@ -17,6 +17,7 @@ urlpatterns = [
     path("", include("apps.documents.urls")),
     path("", include("apps.finance.urls")),
     path("", include("apps.reports.urls")),
+    path("", include("apps.tasks.urls")),
     # media всегда отдаёт приложение: оно решает, что можно показать в браузере
     re_path(r"^media/(?P<path>.*)$", media_file),
 ]

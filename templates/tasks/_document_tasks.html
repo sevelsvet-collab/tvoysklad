@@ -1,0 +1,21 @@
+{% comment %}
+Содержимое вкладки «Задачи» документа. Только ссылки — без форм: вкладка лежит
+внутри формы документа, и постановка задачи не отправляет и не перепроводит её.
+Ожидает: doc_tasks (тег linked_tasks).
+{% endcomment %}
+<div class="p-3 doc-tasks">
+  <div class="mb-2"><a href="{{ doc_tasks.create_url }}" class="btn btn-sm btn-outline-primary" data-task-create><i class="bi bi-plus-lg me-1"></i>Поставить задачу</a></div>
+  {% if doc_tasks.tasks %}
+  <ul class="list-unstyled mb-0">
+    {% for task in doc_tasks.tasks %}
+    <li class="d-flex flex-wrap gap-2 align-items-center py-1 border-bottom">
+      <a href="{% url 'task_detail' task.pk %}" class="fw-semibold text-decoration-none">№ {{ task.number }} {{ task.title }}</a>
+      {% include "tasks/_status.html" with task=task overdue=task.is_overdue %}
+      <span class="small text-muted">{{ task.assignee.display_name }}{% if task.due_at %} · до {{ task.due_at|date:"d.m.Y H:i" }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="text-muted small">Ваших задач по этому документу нет.</div>
+  {% endif %}
+</div>

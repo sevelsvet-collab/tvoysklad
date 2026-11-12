@@ -1,7 +1,8 @@
 from decimal import Decimal
 
 from django.contrib import messages
-from django.db.models import Q
+from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -13,6 +14,7 @@ from apps.core.bulk import bulk_delete_view
 from apps.core.document_edit import LineDocumentMixin
 from apps.core.listing import FilteredListMixin, delete_action, document_filters
 from apps.core.permissions import RoleRequiredMixin, role_required
+from apps.core.protection import concurrent_reason, protected_reason
 from apps.inventory.services import StockError
 
 from .forms import (
@@ -116,7 +118,16 @@ def invoice_unpost(request, pk):
 def invoice_bulk_delete(request):
     ids = request.POST.getlist("ids")
     if ids:
-        deleted, _ = Invoice.objects.filter(pk__in=ids).delete()
+        # всё или ничего: счёт со связанной задачей не даёт удалить отмеченные
+        try:
+            with transaction.atomic():
+                deleted, _ = Invoice.objects.filter(pk__in=ids).delete()
+        except ProtectedError as exc:
+            messages.error(request, protected_reason(exc, "Отмеченные счета не удалены"))
+            return redirect("invoice_list")
+        except IntegrityError:
+            messages.error(request, concurrent_reason("Отмеченные счета не удалены"))
+            return redirect("invoice_list")
         messages.success(request, f"Удалено счетов: {deleted}")
     else:
         messages.warning(request, "Не выбрано ни одного счёта")
@@ -127,7 +138,15 @@ def invoice_bulk_delete(request):
 @role_required(*SALES_ROLES)
 def invoice_delete(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
-    invoice.delete()
+    try:
+        with transaction.atomic():
+            invoice.delete()
+    except ProtectedError as exc:
+        messages.error(request, protected_reason(exc, "Счёт не удалён"))
+        return redirect("invoice_edit", pk=pk)
+    except IntegrityError:
+        messages.error(request, concurrent_reason("Счёт не удалён"))
+        return redirect("invoice_edit", pk=pk)
     messages.info(request, "Счёт удалён")
     return redirect("invoice_list")
 
@@ -223,6 +242,9 @@ def shipment_delete(request, pk):
     except StockError as exc:
         messages.error(request, f"Не удалось удалить: {exc}")
         return redirect("shipment_edit", pk=pk)
+    except ProtectedError as exc:       # проведение снятое при удалении откатилось вместе с ним
+        messages.error(request, protected_reason(exc, "Отгрузка не удалена"))
+        return redirect("shipment_edit", pk=pk)
     messages.info(request, "Отгрузка удалена")
     return redirect("shipment_list")
 
@@ -304,6 +326,9 @@ def customer_return_delete(request, pk):
         doc.delete()   # проведённый снимается с проведения — с проверкой остатков
     except StockError as exc:
         messages.error(request, f"Не удалось удалить: {exc}")
+        return redirect("customer_return_edit", pk=pk)
+    except ProtectedError as exc:       # проведение снятое при удалении откатилось вместе с ним
+        messages.error(request, protected_reason(exc, "Возврат покупателя не удалён"))
         return redirect("customer_return_edit", pk=pk)
     messages.info(request, "Возврат покупателя удалён")
     return redirect("customer_return_list")

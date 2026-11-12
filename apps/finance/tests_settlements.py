@@ -726,8 +726,15 @@ class MigrationTests(TransactionTestCase):
 
     def test_old_schema_is_migrated_without_guessing(self):
         executor = MigrationExecutor(connection)
-        leaves = executor.loader.graph.leaf_nodes()
-        targets = [node for node in leaves if node[0] != "finance"] + [self.before]
+        graph = executor.loader.graph
+        leaves = graph.leaf_nodes()
+        # приложения, зависящие от поздних миграций finance (задачи — от 0005), откатываются вместе
+        # с ними: иначе историческая схема содержала бы поля, которых в базе 0003 ещё нет
+        finance_leaf = next(node for node in leaves if node[0] == "finance")
+        newer = {node for node in set(graph.forwards_plan(finance_leaf)) - set(graph.forwards_plan(self.before))
+                 if node[0] == "finance"}
+        targets = [node for node in leaves
+                   if node[0] != "finance" and not newer & set(graph.forwards_plan(node))] + [self.before]
         executor.migrate(targets)
         try:
             old = executor.loader.project_state(targets).apps

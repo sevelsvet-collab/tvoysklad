@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.documents",
     "apps.finance",
     "apps.reports",
+    "apps.tasks",
 ]
 
 MIDDLEWARE = [
@@ -78,6 +79,7 @@ TEMPLATES = [
                 "apps.core.context_processors.navigation",
                 "apps.core.context_processors.site_owner",
                 "apps.core.context_processors.assets",
+                "apps.tasks.context_processors.task_notifications",
             ],
         },
     },

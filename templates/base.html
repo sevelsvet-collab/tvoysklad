@@ -32,7 +32,13 @@
     {% endfor %}
   </nav>
   <div class="topbar-user">
-    <span class="me-2 small"><i class="bi bi-person-circle me-1"></i>{{ user.display_name }}</span>
+    {% if tasks_enabled %}
+    <a href="{% url 'task_notifications' %}" class="topbar-bell me-2" title="Уведомления"
+       aria-label="Уведомления{% if task_unread %}: новых {{ task_unread }}{% endif %}">
+      <i class="bi bi-bell"></i>{% if task_unread %}<span class="badge rounded-pill text-bg-danger topbar-bell-count">{{ task_unread }}</span>{% endif %}
+    </a>
+    {% endif %}
+    <span class="me-2 small d-none d-sm-inline"><i class="bi bi-person-circle me-1"></i>{{ user.display_name }}</span>
     <form method="post" action="{% url 'logout' %}" class="d-inline">{% csrf_token %}
       <button class="btn btn-sm topbar-logout" type="submit" title="Выйти"><i class="bi bi-box-arrow-right"></i></button>
     </form>

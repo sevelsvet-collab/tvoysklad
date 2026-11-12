@@ -56,6 +56,13 @@ def navigation(request):
         section("dashboard", "Показатели", "bi-graph-up", [
             ("Показатели", "dashboard", ["dashboard"]),
         ]),
+        section("tasks", "Задачи", "bi-check2-square", [
+            ("Мне", "task_mine", ["task_mine", "task_detail", "task_edit", "task_create"]),
+            ("Порученные мной", "task_delegated", ["task_delegated"]),
+            ("На проверке", "task_review", ["task_review"]),
+            ("Все задачи", "task_all", ["task_all"]),
+            ("Уведомления", "task_notifications", ["task_notifications"]),
+        ]),
         section("purchases", "Закупки", "bi-cart-plus", [
             ("Приёмки", "receipt_list", ["receipt_"]),
             ("Возвраты поставщикам", "supplier_return_list", ["supplier_return_"]),
@@ -101,6 +108,13 @@ def navigation(request):
 
     if not request.user.has_role(roles.ROLE_ADMIN):
         nav = [s for s in nav if not s["admin_only"]]
+        # «Все задачи» — только администратору; без роли задачи недоступны вовсе
+        all_tasks = reverse("task_all")
+        for s in nav:
+            if s["code"] == "tasks":
+                s["submenu"] = [i for i in s["submenu"] if i["url"] != all_tasks]
+        if not request.user.has_role(*roles.ALL_ROLES):
+            nav = [s for s in nav if s["code"] != "tasks"]
 
     active_section = next((s for s in nav if s["active"]), None)
     return {"nav_sections": nav, "nav_active": active_section}

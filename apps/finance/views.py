@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.views.decorators.http import require_POST
@@ -14,6 +15,7 @@ from apps.core.listing import (
     ChoiceFilter, FilteredListMixin, PeriodFilter, TextFilter, delete_action, organizations,
 )
 from apps.core.permissions import RoleRequiredMixin, role_required
+from apps.core.protection import protected_reason
 from apps.sales.models import Invoice
 
 from . import settlements
@@ -193,7 +195,11 @@ def payment_unpost(request, pk):
 @role_required(*MONEY_ROLES)
 def payment_delete(request, pk):
     payment = get_object_or_404(Payment, pk=pk)
-    payment.delete()        # оплату счёта пересчитывает сам платёж, в той же транзакции
+    try:
+        payment.delete()    # оплату счёта пересчитывает сам платёж, в той же транзакции
+    except ProtectedError as exc:
+        messages.error(request, protected_reason(exc, "Платёж не удалён"))
+        return redirect("payment_edit", pk=pk)
     messages.info(request, "Платёж удалён")
     return redirect("payment_list")
 

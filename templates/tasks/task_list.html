@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% block title %}Задачи: {{ mode_title }} — Склад{% endblock %}
+{% block page_title %}Задачи: {{ mode_title|lower }}{% endblock %}
+{% block page_actions %}
+<a href="{% url 'task_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Задача</a>
+{% endblock %}
+{% block content %}
+{% if mode == "all" and inactive_count %}
+<div class="alert alert-warning py-2 small">
+  <i class="bi bi-person-x me-1"></i>Активных задач у отключённых сотрудников: <b>{{ inactive_count }}</b>.
+  <a href="?problem=inactive">Показать</a> — передайте их другим исполнителям.
+</div>
+{% endif %}
+{% include "partials/_list_toolbar.html" %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table task-table">
+      <thead class="table-light">
+        <tr><th>№</th><th>Задача</th><th>Статус</th><th>Исполнитель</th><th>Срок</th><th>Приоритет</th><th>Связь</th></tr>
+      </thead>
+      <tbody>
+        {% for task in tasks %}
+        <tr data-url="{% url 'task_detail' task.pk %}" class="{% if task.overdue %}task-overdue{% endif %}">
+          <td data-label="№" class="text-muted">{{ task.number }}</td>
+          <td data-label="Задача" class="task-title-cell">
+            <a href="{% url 'task_detail' task.pk %}" class="fw-semibold text-decoration-none">{{ task.title }}</a>
+            {% if task.items_total %}<span class="text-muted small ms-1" title="Чек-лист">☑ {{ task.items_done }}/{{ task.items_total }}</span>{% endif %}
+            {% if mode != "mine" %}<div class="text-muted small">от {{ task.creator.display_name }}</div>{% endif %}
+            {% if task.problems %}<div class="small text-danger">{{ task.problems|join:", " }}</div>{% endif %}
+          </td>
+          <td data-label="Статус">{% include "tasks/_status.html" with task=task overdue=task.overdue %}</td>
+          <td data-label="Исполнитель">{{ task.assignee.display_name }}{% if not task.assignee.is_active %} <span class="badge text-bg-light border">отключён</span>{% endif %}</td>
+          <td data-label="Срок" class="text-nowrap">{% if task.due_at %}{{ task.due_at|date:"d.m.Y H:i" }}{% else %}<span class="text-muted">без срока</span>{% endif %}</td>
+          <td data-label="Приоритет">{% if task.priority == "high" %}<span class="text-danger fw-semibold"><i class="bi bi-exclamation-circle"></i> Высокий</span>{% else %}<span class="text-muted">Обычный</span>{% endif %}</td>
+          <td data-label="Связь">{% include "tasks/_link.html" with task=task %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">{% if filters_active or request.GET.q %}Ничего не найдено — измените условия поиска{% else %}Задач нет{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="text-muted small mt-2 mb-0">Сроки — {{ tz_label }}.</p>
+{% include "partials/_pagination.html" %}
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Уведомления — Склад{% endblock %}
+{% block page_title %}Уведомления{% endblock %}
+{% block page_actions %}
+{% if task_unread %}
+<form method="post" action="{% url 'notifications_read' %}" class="m-0">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-outline-secondary btn-sm">Отметить все прочитанными</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="card">
+  <ul class="list-group list-group-flush notice-list">
+    {% for row in rows %}
+    <li class="list-group-item d-flex align-items-start gap-2 {% if not row.n.read_at %}notice-unread{% endif %}">
+      <i class="bi {% if row.n.read_at %}bi-bell text-muted{% else %}bi-bell-fill text-primary{% endif %} mt-1"></i>
+      <div class="flex-grow-1 min-w-0">
+        <div class="small text-muted">{{ row.n.created_at|date:"d.m.Y H:i" }} · {{ row.n.event.author.display_name }}</div>
+        <div><b>{{ row.text }}</b>{% if row.change %}: {{ row.change }}{% endif %}</div>
+        {% if row.open %}
+        <div class="text-truncate">Задача № {{ row.n.task.number }} — {{ row.n.task.title }}</div>
+        {% else %}
+        <div class="text-muted small">Задача № {{ row.n.task.number }} — вы больше не участник этой задачи</div>
+        {% endif %}
+      </div>
+      <form method="post" action="{% url 'notification_open' row.n.pk %}" class="m-0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm {% if row.open %}btn-outline-primary{% else %}btn-outline-secondary{% endif %}">{% if row.open %}Открыть{% else %}Прочитано{% endif %}</button>
+      </form>
+    </li>
+    {% empty %}
+    <li class="list-group-item text-center text-muted py-4">Уведомлений нет</li>
+    {% endfor %}
+  </ul>
+</div>
+{% include "partials/_pagination.html" %}
+{% endblock %}

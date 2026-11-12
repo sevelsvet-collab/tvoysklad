@@ -1,0 +1,9 @@
+{# Связанный объект задачи (виден только тем, кто видит задачу: право на карточку проверено). Ожидает: task #}
+{% if task.link_type == "counterparty" %}<i class="bi bi-people me-1 text-muted"></i>{{ task.counterparty.name }}
+{% elif task.link_type == "invoice" %}<i class="bi bi-file-earmark-text me-1 text-muted"></i>{{ task.invoice }}
+{% elif task.link_type == "shipment" %}<i class="bi bi-truck me-1 text-muted"></i>{{ task.shipment }}
+{% elif task.link_type == "customer_return" %}<i class="bi bi-arrow-return-left me-1 text-muted"></i>{{ task.customer_return }}
+{% elif task.link_type == "receipt" %}<i class="bi bi-box-arrow-in-down me-1 text-muted"></i>{{ task.receipt }}
+{% elif task.link_type == "supplier_return" %}<i class="bi bi-arrow-return-right me-1 text-muted"></i>{{ task.supplier_return }}
+{% elif task.link_type == "payment" %}<i class="bi bi-cash-coin me-1 text-muted"></i>{{ task.payment }}
+{% else %}<span class="text-muted">—</span>{% endif %}

@@ -1,0 +1,9 @@
+{# Статус задачи и вычисляемые признаки. Ожидает: task, overdue (bool) #}
+{% if task.status == "new" %}<span class="badge text-bg-secondary">Новая</span>
+{% elif task.status == "in_progress" %}<span class="badge text-bg-primary">В работе</span>
+{% elif task.status == "waiting" %}<span class="badge text-bg-warning">Ожидание</span>
+{% elif task.status == "review" %}<span class="badge text-bg-info">На проверке</span>
+{% elif task.status == "done" %}<span class="badge text-bg-success">Завершена</span>
+{% else %}<span class="badge text-bg-light border">Отменена</span>{% endif %}
+{% if overdue %}<span class="badge text-bg-danger" title="Срок прошёл, задача не завершена">Просрочена</span>{% endif %}
+{% if overdue and task.status == "review" %}<span class="badge text-bg-light border text-info-emphasis">ждёт приёмки</span>{% endif %}

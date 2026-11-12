@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.db.models import Q
+from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.views.decorators.http import require_POST
@@ -11,6 +11,7 @@ from apps.core.bulk import bulk_delete_view
 from apps.core.document_edit import LineDocumentMixin
 from apps.core.listing import FilteredListMixin, delete_action, document_filters
 from apps.core.permissions import RoleRequiredMixin, role_required
+from apps.core.protection import protected_reason
 from apps.inventory.services import StockError
 from apps.partners.models import Counterparty
 
@@ -100,6 +101,9 @@ def receipt_delete(request, pk):
     except StockError as exc:
         messages.error(request, f"Не удалось удалить: {exc}")
         return redirect("receipt_edit", pk=pk)
+    except ProtectedError as exc:       # проведение снятое при удалении откатилось вместе с ним
+        messages.error(request, protected_reason(exc, "Приёмка не удалена"))
+        return redirect("receipt_edit", pk=pk)
     messages.info(request, "Приёмка удалена")
     return redirect("receipt_list")
 
@@ -181,6 +185,9 @@ def supplier_return_delete(request, pk):
         doc.delete()   # проведённый снимается с проведения — с проверкой остатков
     except StockError as exc:
         messages.error(request, f"Не удалось удалить: {exc}")
+        return redirect("supplier_return_edit", pk=pk)
+    except ProtectedError as exc:       # проведение снятое при удалении откатилось вместе с ним
+        messages.error(request, protected_reason(exc, "Возврат поставщику не удалён"))
         return redirect("supplier_return_edit", pk=pk)
     messages.info(request, "Возврат поставщику удалён")
     return redirect("supplier_return_list")

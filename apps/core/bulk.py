@@ -8,6 +8,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .permissions import role_required
+from .protection import protected_details
 
 
 def selected_ids(request):
@@ -48,8 +49,8 @@ def bulk_delete_view(model, list_url_name, roles, noun="документов"):
                         obj.unpost()
                     obj.delete()
                 deleted += 1
-            except ProtectedError:
-                failed.append(f"{obj}: на документ ссылаются другие документы")
+            except ProtectedError as exc:
+                failed.append(f"{obj}: {protected_details(exc)}")
             except StockError as exc:
                 failed.append(f"{obj}: {exc}")
         if deleted:

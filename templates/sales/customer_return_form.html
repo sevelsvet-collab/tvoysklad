@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% load humanize %}
+{% load tasks %}
 {% block title %}Возврат покупателя — Склад{% endblock %}
 {% block page_title %}{% include "documents/_doc_heading.html" with title="Возврат покупателя" %}{% endblock %}
 {% block content %}
@@ -39,8 +40,8 @@
       </button>
     </li>
     <li class="nav-item"><button class="nav-link disabled" type="button">Файлы</button></li>
-    <li class="nav-item"><button class="nav-link disabled" type="button">Задачи</button></li>
-    <li class="nav-item"><button class="nav-link disabled" type="button">События</button></li>
+    {% linked_tasks object as doc_tasks %}{% if doc_tasks.enabled %}<li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-tasks" type="button" role="tab">Задачи{% if doc_tasks.count %} <span class="badge text-bg-secondary rounded-pill">{{ doc_tasks.count }}</span>{% endif %}</button></li>{% endif %}
+    <li class="nav-item"><button class="nav-link disabled" type="button" title="Журнал изменений документа — отдельный этап; журнал задач — в самих задачах">События</button></li>
   </ul>
   <div class="tab-content border border-top-0 rounded-bottom mb-3">
     <div class="tab-pane fade show active" id="tab-lines" role="tabpanel">
@@ -49,9 +50,11 @@
     <div class="tab-pane fade" id="tab-related" role="tabpanel">
       {% include "documents/_related_docs.html" with related_docs=related_docs %}
     </div>
+    {% if doc_tasks.enabled %}<div class="tab-pane fade" id="tab-tasks" role="tabpanel">{% include "tasks/_document_tasks.html" with doc_tasks=doc_tasks %}</div>{% endif %}
   </div>
   {% endwith %}{% else %}
   {% include "documents/_line_table.html" with serial_mode="enter" show_stock=True show_price=True show_vat=True show_discount=True price_source="sale" %}
+  <p class="text-muted small mt-2 mb-0">Задачу по документу можно поставить после его сохранения.</p>
   {% endif %}
 </form>
 {% endblock %}
