@@ -27,6 +27,8 @@ EDIT_ROLES = [roles.ROLE_ADMIN, roles.ROLE_STOREKEEPER, roles.ROLE_MANAGER]
 
 
 class ReceiptListView(FilteredListMixin, RoleRequiredMixin, ListView):
+    # список — тем же ролям, что открывают карточку (apps/core/tests_list_print_roles.py)
+    allowed_roles = EDIT_ROLES
     model = Receipt
     template_name = "purchases/receipt_list.html"
     context_object_name = "receipts"
@@ -111,6 +113,8 @@ def receipt_delete(request, pk):
 # ---------- Возвраты поставщикам ----------
 
 class SupplierReturnListView(FilteredListMixin, RoleRequiredMixin, ListView):
+    # список — тем же ролям, что открывают карточку (apps/core/tests_list_print_roles.py)
+    allowed_roles = EDIT_ROLES
     model = SupplierReturn
     template_name = "purchases/supplier_return_list.html"
     context_object_name = "returns"

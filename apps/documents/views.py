@@ -3,7 +3,6 @@ import mimetypes
 from decimal import Decimal
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.core.mail import EmailMessage
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -21,8 +20,11 @@ from .pdf import render_pdf
 from .qr import invoice_qr_data_uri
 
 
-# Отправка счёта покупателю — те же роли, что редактируют счёт (apps.sales.views.SALES_ROLES)
-INVOICE_ROLES = [roles.ROLE_ADMIN, roles.ROLE_MANAGER]
+# Печать и отправка — тем же ролям, что открывают карточку документа: печатная форма
+# раскрывает документ целиком. Совпадение с карточками держит apps/core/tests_list_print_roles.py.
+INVOICE_ROLES = [roles.ROLE_ADMIN, roles.ROLE_MANAGER]                         # apps.sales.views.SALES_ROLES
+SHIPMENT_ROLES = [roles.ROLE_ADMIN, roles.ROLE_MANAGER, roles.ROLE_STOREKEEPER]  # apps.sales.views.SHIP_ROLES
+PAYMENT_ROLES = [roles.ROLE_ADMIN, roles.ROLE_ACCOUNTANT, roles.ROLE_MANAGER]   # apps.finance.views.MONEY_ROLES
 
 
 def _image_data_uri(field):
@@ -129,7 +131,7 @@ def _invoice_pdf(request, invoice, with_qr=False):
     return pdf, filename
 
 
-@login_required
+@role_required(*INVOICE_ROLES)
 def invoice_payment(request, pk, with_qr=False):
     invoice = get_object_or_404(Invoice.objects.select_related("organization", "customer"), pk=pk)
     context, _ = _invoice_payment_context(invoice, with_qr)
@@ -206,7 +208,7 @@ def _shipment_context(request, shipment, only_products=False, only_services=Fals
     return context
 
 
-@login_required
+@role_required(*PAYMENT_ROLES)
 def payment_cash_order(request, pk):
     """Приходный кассовый ордер (форма КО-1) по наличному платежу."""
     from apps.finance.models import Payment
@@ -219,21 +221,21 @@ def payment_cash_order(request, pk):
     return _respond(request, "documents/print/cash_order.html", context, f"ПКО_{payment.number}.pdf")
 
 
-@login_required
+@role_required(*SHIPMENT_ROLES)
 def shipment_torg12(request, pk):
     shipment = get_object_or_404(Shipment.objects.select_related("organization", "customer"), pk=pk)
     context = _shipment_context(request, shipment, only_products=True)
     return _respond(request, "documents/print/torg12.html", context, f"ТОРГ-12_{shipment.number}.pdf")
 
 
-@login_required
+@role_required(*SHIPMENT_ROLES)
 def shipment_act(request, pk):
     shipment = get_object_or_404(Shipment.objects.select_related("organization", "customer"), pk=pk)
     context = _shipment_context(request, shipment, only_services=True)
     return _respond(request, "documents/print/act.html", context, f"Акт_{shipment.number}.pdf")
 
 
-@login_required
+@role_required(*SHIPMENT_ROLES)
 def shipment_upd(request, pk):
     shipment = get_object_or_404(Shipment.objects.select_related("organization", "customer"), pk=pk)
     context = _shipment_context(request, shipment)
