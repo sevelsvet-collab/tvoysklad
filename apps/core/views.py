@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.http import HttpResponse
+from django.shortcuts import redirect
 from django.contrib.auth import get_user_model
 from django.urls import reverse, reverse_lazy
 from django.views.generic import CreateView, ListView, TemplateView, UpdateView
@@ -38,7 +39,17 @@ def robots_txt(request):
 
 
 class DashboardView(RoleRequiredMixin, TemplateView):
+    allowed_roles = [roles.ROLE_ADMIN, roles.ROLE_MANAGER, roles.ROLE_ACCOUNTANT]
     template_name = "core/dashboard.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        # Главная — также адрес после входа. Не загружаем финансовые данные
+        # для пользователей без доступа к показателям: открываем их задачи.
+        if (request.user.is_authenticated
+                and not request.user.has_role(*self.allowed_roles)
+                and request.user.has_role(roles.ROLE_STOREKEEPER)):
+            return redirect("task_mine")
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         from decimal import Decimal

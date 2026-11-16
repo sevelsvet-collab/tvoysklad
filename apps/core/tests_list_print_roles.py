@@ -10,11 +10,12 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.test import Client, TestCase
+from django.test import Client, RequestFactory, TestCase
 from django.urls import reverse
 
 from apps.catalog.models import Product, Unit
 from apps.core import roles
+from apps.core.context_processors import navigation
 from apps.core.models import Organization, Warehouse
 from apps.finance.models import Account, Payment
 from apps.partners.models import Counterparty
@@ -118,10 +119,10 @@ class ListPrintRolesTests(TestCase):
     def test_menu_never_leads_to_forbidden_page(self):
         for name in self.users:
             client = self.as_user(name)
-            page = client.get(reverse("dashboard"))
-            self.assertEqual(page.status_code, 200, name)
+            request = RequestFactory().get(reverse("dashboard"))
+            request.user = self.users[name]
             links = set()
-            for section in page.context["nav_sections"]:
+            for section in navigation(request)["nav_sections"]:
                 for item in section["submenu"]:
                     if item["url"]:
                         links.add(item["url"])
@@ -131,7 +132,7 @@ class ListPrintRolesTests(TestCase):
                 self.assertNotEqual(client.get(url).status_code, 403, f"{name}: {url}")
 
     def test_sales_menu_leads_storekeeper_to_shipments(self):
-        page = self.as_user(roles.ROLE_STOREKEEPER).get(reverse("dashboard"))
+        page = self.as_user(roles.ROLE_STOREKEEPER).get(reverse("dashboard"), follow=True)
         sales = next(s for s in page.context["nav_sections"] if s["code"] == "sales")
         self.assertEqual(sales["url"], reverse("shipment_list"))
         self.assertNotIn(reverse("invoice_list"), [item["url"] for item in sales["submenu"]])
