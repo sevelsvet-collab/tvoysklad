@@ -54,7 +54,8 @@ class ReleaseBase(TaskWorld, TestCase):
 
 class MenuTests(ReleaseBase):
     def menu(self, client):
-        page = client.get(reverse("dashboard"))
+        # Меню проверяем на доступном всем вошедшим списке товаров.
+        page = client.get(reverse("product_list"))
         self.assertEqual(page.status_code, 200)
         return page, page.context["nav_sections"]
 
@@ -69,7 +70,14 @@ class MenuTests(ReleaseBase):
             client = self.as_user(user)
             _, nav = self.menu(client)
             shown = {item["url"] for section in nav for item in section["submenu"] if item["url"]}
-            opens = {url for url in candidates if self.opened(client.get(url), f"{name}: {url}")}
+            opens = set()
+            for url in candidates:
+                response = client.get(url)
+                if user == self.keeper and url == reverse("dashboard"):
+                    self.assertRedirects(response, reverse("task_mine"))
+                    continue
+                if self.opened(response, f"{name}: {url}"):
+                    opens.add(url)
             self.assertEqual(shown - opens, set(), f"{name}: пункты меню ведут на закрытые страницы")
             if name not in ("Администратор", "суперпользователь"):
                 opens -= admin_only
@@ -102,9 +110,9 @@ class MenuTests(ReleaseBase):
                                   "money", "reports", "settings"},
             "Менеджер": {"dashboard", "tasks", "purchases", "sales", "catalog", "stock", "partners", "money",
                          "reports"},
-            "Кладовщик": {"dashboard", "tasks", "purchases", "sales", "catalog", "stock", "reports"},
+            "Кладовщик": {"tasks", "purchases", "sales", "catalog", "stock", "reports"},
             "Бухгалтер": {"dashboard", "tasks", "catalog", "stock", "partners", "money", "reports"},
-            "без роли": {"dashboard", "catalog", "reports"},
+            "без роли": {"catalog", "reports"},
         }
         for name, user in self.people.items():
             _, nav = self.menu(self.as_user(user))
